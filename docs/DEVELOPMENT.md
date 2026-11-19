@@ -72,3 +72,35 @@ variables, using the **real** service role key. None of the proxy workarounds ab
   would be both stale and impossible to produce without network access at build time.
 - Images are served through short-lived signed URLs, which is why the app uses plain `<img>`
   rather than `next/image` — the latter would cache a URL past its expiry.
+
+## Atlas Cloud (phase 2)
+
+Verified against the live API, not written from docs:
+
+| | |
+|---|---|
+| Start | `POST https://api.atlascloud.ai/api/v1/model/generateImage` → `{ data: { id, status } }` |
+| Poll | `GET https://api.atlascloud.ai/api/v1/model/prediction/{id}` |
+| Statuses | `created`, `processing`, `completed`, `failed` |
+| Auth | `Authorization: Bearer <ATLAS_CLOUD_API_KEY>` |
+| Catalogue | `GET /api/v1/models` — public, no key, 626 models |
+| Per-model schema | each catalogue entry carries a `schema` URL on `static.atlascloud.ai` |
+| Finished images | served from `atlas-media.oss-us-west-1.aliyuncs.com` |
+
+Four hosts, not one. The app downloads every output into Supabase storage rather than
+linking it, because those media URLs are not promised to last.
+
+The model picker and the settings form are both built from the live catalogue and each
+model's published OpenAPI schema, so new Atlas models appear without a code change.
+
+Generation takes roughly twenty seconds, which is too long to hold a serverless function
+open. `POST /api/generate` only starts the job and records it; `GET /api/generate/{id}`
+collects the result and is idempotent, so polling twice cannot duplicate variants or
+double-charge the ledger.
+
+### Driving the app with Playwright here
+
+Launch Chromium **without** a proxy. Routing it through the egress proxy currently fails
+with `ERR_PROXY_CONNECTION_FAILED` on Supabase storage, which looks exactly like broken
+images in the app but is not — the same URLs return 200 to `curl`, to Node, and to a
+browser launched with no proxy.

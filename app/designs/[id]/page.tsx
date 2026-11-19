@@ -9,6 +9,10 @@ import { StageControls } from '@/components/StageControls';
 import { SubmitButton } from '@/components/SubmitButton';
 import { ActionForm } from '@/components/ActionForm';
 import { DangerButton } from '@/components/DangerButton';
+import { VariantPicker } from '@/components/VariantPicker';
+import { listVariants } from '@/lib/queries';
+
+export const dynamic = 'force-dynamic';
 
 export default async function DesignPage({ params }: { params: Promise<{ id: string }> }) {
   if (!isConfigured) return <SetupNotice />;
@@ -17,7 +21,11 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
   const design = await getDesign(id);
   if (!design) notFound();
 
-  const [history, collections] = await Promise.all([getStageHistory(id), listCollections()]);
+  const [history, collections, variants] = await Promise.all([
+    getStageHistory(id),
+    listCollections(),
+    listVariants(id),
+  ]);
   const meta = STAGE_META[design.stage];
 
   return (
@@ -49,6 +57,8 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
               </div>
             )}
           </div>
+
+          <VariantPicker designId={design.id} variants={variants} />
 
           <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
             <StageControls designId={design.id} stage={design.stage} />

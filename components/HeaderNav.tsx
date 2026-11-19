@@ -18,6 +18,12 @@ export function HeaderNav() {
         <Link href="/" className="hover:text-zinc-100">
           Board
         </Link>
+        <Link href="/generate" className="hover:text-zinc-100">
+          Generate
+        </Link>
+        <Link href="/prompts" className="hover:text-zinc-100">
+          Prompts
+        </Link>
         <Link href="/collections" className="hover:text-zinc-100">
           Collections
         </Link>

@@ -229,10 +229,12 @@ Themes change colours only. Templates hold a whole look — size, layout, type a
 and are yours to save. The migration deliberately seeds none: shipping templates named after
 the themes put two identically-named buttons on one screen doing different things.
 
-### Still to port
+### Framing
 
-The AI copy generation (`SYSTEM_PROMPT`, `buildPrompt`, `salvageJSON`) and the starred-
-headline feedback loop are not ported yet. The `style_examples` table is waiting for them.
+Drag the photo to reposition it, scroll on the preview to zoom — both as the original had.
+The wheel listener is attached directly rather than through React's `onWheel`, because React
+registers wheel listeners as **passive** and a passive listener cannot call `preventDefault`.
+Without it the page scrolls away under the cursor while you are trying to resize the photo.
 
 ## Pin copy
 

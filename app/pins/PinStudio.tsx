@@ -90,6 +90,30 @@ export function PinStudio({
     setDrag({ x: e.clientX, y: e.clientY });
   }
 
+  /**
+   * Scroll on the preview to zoom, as the original had.
+   *
+   * Attached directly rather than through React's `onWheel`, because React registers wheel
+   * listeners as passive and a passive listener cannot call preventDefault — without it the
+   * page scrolls away under the cursor while you are trying to resize the photo.
+   */
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (!image) return;
+      e.preventDefault();
+      setContent((c) => ({
+        ...c,
+        zoom: Math.min(3, Math.max(0.5, c.zoom * (e.deltaY < 0 ? 1.05 : 0.95))),
+      }));
+    };
+
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', onWheel);
+  }, [image]);
+
   useEffect(() => {
     if (!drag) return;
     const canvas = canvasRef.current;
@@ -238,6 +262,20 @@ export function PinStudio({
           />
         </div>
 
+        <label className="flex items-center gap-2 text-xs text-zinc-400">
+          Zoom
+          <input
+            type="range"
+            aria-label="Zoom"
+            className="flex-1"
+            min={50}
+            max={300}
+            value={Math.round(content.zoom * 100)}
+            onChange={(e) => setContent((c) => ({ ...c, zoom: Number(e.target.value) / 100 }))}
+          />
+          <span className="w-10 text-right text-zinc-500">{Math.round(content.zoom * 100)}%</span>
+        </label>
+
         <div className="flex flex-wrap items-center gap-2">
           <button className="btn-primary" onClick={save} disabled={!!busy || !render}>
             {busy ?? 'Save pin'}
@@ -246,7 +284,7 @@ export function PinStudio({
             Download
           </button>
           <span className="text-[11px] text-zinc-600">
-            {W}×{H} · drag the photo to reframe it
+            {W}×{H} · drag to reposition, scroll on the pin to zoom
           </span>
         </div>
 
@@ -274,17 +312,6 @@ export function PinStudio({
             </select>
           </label>
 
-          <label className="block space-y-1 text-xs text-zinc-400">
-            Zoom
-            <input
-              type="range"
-              className="w-full"
-              min={50}
-              max={300}
-              value={Math.round(content.zoom * 100)}
-              onChange={(e) => setContent((c) => ({ ...c, zoom: Number(e.target.value) / 100 }))}
-            />
-          </label>
           <button
             className="btn w-full"
             onClick={() => setContent((c) => ({ ...c, zoom: 1, offsetX: 0, offsetY: 0 }))}

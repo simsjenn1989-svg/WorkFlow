@@ -91,6 +91,48 @@ function solve(a: number[][], b: number[]): number[] {
   return m.map((row) => row[n]!);
 }
 
+/** Area of a quad in square pixels, by the shoelace formula. Sign is discarded. */
+export function quadArea(quad: Quad): number {
+  let sum = 0;
+  for (let i = 0; i < 4; i++) {
+    const a = quad[i]!;
+    const b = quad[(i + 1) % 4]!;
+    sum += a.x * b.y - b.x * a.y;
+  }
+  return Math.abs(sum) / 2;
+}
+
+/**
+ * Reject a print area too small or too thin to hold a visible print.
+ *
+ * Without this a collapsed quad — four corners dragged onto nearly the same line — saves
+ * happily and then renders nothing at all, which looks like a broken renderer rather than a
+ * badly marked area.
+ */
+export function describeAreaProblem(
+  quad: Quad,
+  imageWidth: number,
+  imageHeight: number,
+): string | null {
+  const area = quadArea(quad);
+  const imageArea = imageWidth * imageHeight;
+  if (imageArea <= 0) return 'That mockup image has no size.';
+
+  if (area / imageArea < 0.002) {
+    return 'That print area is too small to hold a design. Drag the corners further apart.';
+  }
+
+  const xs = quad.map((p) => p.x);
+  const ys = quad.map((p) => p.y);
+  const width = Math.max(...xs) - Math.min(...xs);
+  const height = Math.max(...ys) - Math.min(...ys);
+  if (width < 8 || height < 8) {
+    return 'That print area has collapsed to a line. Drag the corners apart.';
+  }
+
+  return null;
+}
+
 /** Axis-aligned bounds of a quad, clamped to the image and rounded outward. */
 export function boundsOf(quad: Quad, width: number, height: number) {
   const xs = quad.map((p) => p.x);

@@ -1,7 +1,6 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { BUCKET, db } from '@/lib/supabase';
 import { isStage, nextStage, previousStage, type Stage } from '@/lib/stages';
@@ -11,83 +10,6 @@ export type ActionResult = { ok: true } | { ok: false; error: string };
 
 function fail(error: string): ActionResult {
   return { ok: false, error };
-}
-
-const ACCEPTED = ['image/png', 'image/jpeg', 'image/webp'] as const;
-const MAX_BYTES = 40 * 1024 * 1024;
-
-const uploadSchema = z.object({
-  title: z.string().trim().max(200).optional(),
-  collectionId: z.string().uuid().optional(),
-  tags: z.string().trim().max(500).optional(),
-});
-
-/**
- * Create designs from uploaded image files.
- *
- * Phase 1 is a manual organiser, so this is how designs get in. Phase 2 adds the same
- * thing driven by Atlas Cloud. A design created this way starts at `approved`, because the
- * art already exists — there was no prompt to generate from.
- */
-export async function uploadDesigns(form: FormData): Promise<ActionResult> {
-  const parsed = uploadSchema.safeParse({
-    title: form.get('title') ?? undefined,
-    collectionId: form.get('collectionId') || undefined,
-    tags: form.get('tags') ?? undefined,
-  });
-  if (!parsed.success) return fail('Those details are not valid.');
-
-  const files = form.getAll('files').filter((f): f is File => f instanceof File && f.size > 0);
-  if (files.length === 0) return fail('Pick at least one image.');
-
-  const tags = (parsed.data.tags ?? '')
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean);
-
-  for (const file of files) {
-    if (!(ACCEPTED as readonly string[]).includes(file.type)) {
-      return fail(`${file.name} is a ${file.type || 'unknown'} file. Use PNG, JPG or WebP.`);
-    }
-    if (file.size > MAX_BYTES) return fail(`${file.name} is larger than 40 MB.`);
-  }
-
-  for (const [i, file] of files.entries()) {
-    const id = randomUUID();
-    const ext = file.name.split('.').pop()?.toLowerCase() ?? 'png';
-    const path = `designs/${id}/raw.${ext}`;
-
-    const { error: upErr } = await db()
-      .storage.from(BUCKET)
-      .upload(path, file, { contentType: file.type, upsert: false });
-    if (upErr) return fail(`Uploading ${file.name} failed: ${upErr.message}`);
-
-    // A shared title across several files gets numbered; file names are already distinct,
-    // so numbering them would just produce "ghost mode 2" for the only Ghost Mode.
-    const given = parsed.data.title?.trim();
-    const title = given ? (files.length > 1 ? `${given} ${i + 1}` : given) : stripExt(file.name);
-
-    const { error: insErr } = await db().from('designs').insert({
-      id,
-      title,
-      stage: 'approved' satisfies Stage,
-      collection_id: parsed.data.collectionId ?? null,
-      tags,
-      raw_image_path: path,
-    });
-    if (insErr) {
-      // Don't leave an orphaned object behind if the row fails.
-      await db().storage.from(BUCKET).remove([path]);
-      return fail(`Saving ${file.name} failed: ${insErr.message}`);
-    }
-  }
-
-  revalidatePath('/');
-  return { ok: true };
-}
-
-function stripExt(name: string): string {
-  return name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim() || 'Untitled';
 }
 
 /** Move a design to an explicit stage. The database trigger records the history. */

@@ -24,6 +24,9 @@ export function HeaderNav() {
         <Link href="/prompts" className="hover:text-zinc-100">
           Prompts
         </Link>
+        <Link href="/mockups" className="hover:text-zinc-100">
+          Mockups
+        </Link>
         <Link href="/collections" className="hover:text-zinc-100">
           Collections
         </Link>

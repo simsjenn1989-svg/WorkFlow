@@ -104,3 +104,37 @@ Launch Chromium **without** a proxy. Routing it through the egress proxy current
 with `ERR_PROXY_CONNECTION_FAILED` on Supabase storage, which looks exactly like broken
 images in the app but is not — the same URLs return 200 to `curl`, to Node, and to a
 browser launched with no proxy.
+
+## Uploads go straight to storage
+
+File bytes never pass through the server. The browser asks `/api/uploads/sign` for a
+one-shot signed URL, PUTs the file to Supabase storage directly, then calls `/api/designs`
+or `/api/mockups` with a small JSON body to register the row.
+
+This is not a refinement. Server Actions cap a request body at **1 MB**, and Vercel caps a
+serverless function request at about 4.5 MB, so routing real photographs through either
+fails: three garment photos totalling 1.2 MB returned a 413 that surfaced only as a React
+error in the console. Raising `serverActions.bodySizeLimit` would not have helped past
+Vercel's own limit.
+
+The service-role key still never reaches the browser — a signed upload URL authorises
+exactly one object and nothing else.
+
+## Mockups
+
+A template is a garment photograph plus four corners stored as fractions of the image, so an
+area survives any later resize. Saving an area measures the garment colour and baseline
+luminance underneath it and stores both on the template.
+
+Degenerate areas are rejected on both save and preview. Four corners dragged onto nearly the
+same line otherwise saves happily and renders nothing at all, which reads as a broken
+renderer rather than a badly marked area.
+
+### Testing the editor with Playwright
+
+Two traps, both of which produced convincing false failures:
+
+- `locator.boundingBox()` scrolls the element into view, shifting the page between measuring
+  and clicking. Read the rect with `page.evaluate` instead.
+- Don't assume handles start at their defaults. A template with a saved area loads its own
+  corners, so a grab at the default position lands on empty image and nothing moves.

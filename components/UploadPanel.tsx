@@ -1,19 +1,27 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
-import { uploadDesigns } from '@/app/actions';
+import { useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { checkFiles, uploadFiles } from '@/lib/upload-client';
 import type { Collection } from '@/lib/types';
 
 /**
- * Drag-and-drop or pick images to create designs. Phase 2 replaces this as the main way art
- * arrives, but manual upload stays — not every design will come from Atlas.
+ * Drag-and-drop or pick images to create designs.
+ *
+ * Bytes go straight from the browser to storage rather than through a Server Action, which
+ * caps a request body at 1 MB — small enough that a single real design file fails.
  */
 export function UploadPanel({ collections }: { collections: Collection[] }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
+  const [title, setTitle] = useState('');
+  const [collectionId, setCollectionId] = useState('');
+  const [tags, setTags] = useState('');
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
+  const [progress, setProgress] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   function addFiles(list: FileList | null) {
@@ -27,26 +35,46 @@ export function UploadPanel({ collections }: { collections: Collection[] }) {
     setFiles((prev) => [...prev, ...images]);
   }
 
-  function submit(form: HTMLFormElement) {
-    if (files.length === 0) {
-      setError('Pick at least one image.');
+  async function submit() {
+    const problem = checkFiles(files);
+    if (problem) {
+      setError(problem);
       return;
     }
-    const data = new FormData(form);
-    data.delete('files');
-    for (const file of files) data.append('files', file);
 
+    setBusy(true);
     setError(null);
-    start(async () => {
-      const result = await uploadDesigns(data);
-      if (!result.ok) {
-        setError(result.error);
-        return;
+    try {
+      const uploaded = await uploadFiles('design', files, (done, total) =>
+        setProgress(`Uploading ${done} of ${total}…`),
+      );
+      setProgress('Saving…');
+
+      const response = await fetch('/api/designs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: uploaded,
+          title: title.trim() || null,
+          collectionId: collectionId || null,
+          tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
+        }),
+      });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? 'Saving failed.');
       }
+
       setFiles([]);
+      setTitle('');
       setOpen(false);
-      form.reset();
-    });
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+      setProgress(null);
+    }
   }
 
   if (!open) {
@@ -58,16 +86,10 @@ export function UploadPanel({ collections }: { collections: Collection[] }) {
   }
 
   return (
-    <form
-      className="w-full max-w-xl space-y-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        submit(e.currentTarget);
-      }}
-    >
+    <div className="w-full max-w-xl space-y-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">Add designs</h2>
-        <button type="button" className="text-xs text-zinc-400 hover:text-zinc-200" onClick={() => setOpen(false)}>
+        <button className="text-xs text-zinc-400 hover:text-zinc-200" onClick={() => setOpen(false)}>
           Close
         </button>
       </div>
@@ -90,14 +112,15 @@ export function UploadPanel({ collections }: { collections: Collection[] }) {
           addFiles(e.dataTransfer.files);
         }}
         className={`cursor-pointer rounded-md border-2 border-dashed p-6 text-center text-sm transition ${
-          dragging ? 'border-zinc-500 bg-zinc-800/60' : 'border-zinc-800 text-zinc-400 hover:border-zinc-700'
+          dragging
+            ? 'border-zinc-500 bg-zinc-800/60'
+            : 'border-zinc-800 text-zinc-400 hover:border-zinc-700'
         }`}
       >
         Drop PNG, JPG or WebP here, or click to choose
         <input
           ref={inputRef}
           type="file"
-          name="files"
           accept="image/png,image/jpeg,image/webp"
           multiple
           hidden
@@ -109,9 +132,11 @@ export function UploadPanel({ collections }: { collections: Collection[] }) {
         <ul className="max-h-32 space-y-1 overflow-y-auto text-xs text-zinc-400">
           {files.map((f, i) => (
             <li key={`${f.name}-${i}`} className="flex items-center justify-between gap-2">
-              <span className="truncate">{f.name}</span>
+              <span className="truncate">
+                {f.name}{' '}
+                <span className="text-zinc-600">{(f.size / 1024 / 1024).toFixed(1)} MB</span>
+              </span>
               <button
-                type="button"
                 className="text-zinc-500 hover:text-rose-400"
                 onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
               >
@@ -128,12 +153,18 @@ export function UploadPanel({ collections }: { collections: Collection[] }) {
           <input
             name="title"
             className="field"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
             placeholder={files.length > 1 ? 'Numbered automatically' : 'Taken from the file name'}
           />
         </label>
         <label className="space-y-1 text-xs text-zinc-400">
           Collection
-          <select name="collectionId" className="field">
+          <select
+            className="field"
+            value={collectionId}
+            onChange={(e) => setCollectionId(e.target.value)}
+          >
             <option value="">None</option>
             {collections.map((c) => (
               <option key={c.id} value={c.id}>
@@ -144,21 +175,31 @@ export function UploadPanel({ collections }: { collections: Collection[] }) {
         </label>
       </div>
 
-      <label className="space-y-1 text-xs text-zinc-400">
+      <label className="block space-y-1 text-xs text-zinc-400">
         Tags, comma separated
-        <input name="tags" className="field" placeholder="halloween, retro, cat" />
+        <input
+          name="tags"
+          className="field"
+          value={tags}
+          onChange={(e) => setTags(e.target.value)}
+          placeholder="halloween, retro, cat"
+        />
       </label>
 
       {error ? <p className="text-xs text-rose-400">{error}</p> : null}
 
-      <div className="flex items-center gap-2">
-        <button type="submit" className="btn-primary" disabled={pending}>
-          {pending
-            ? 'Uploading…'
+      <div className="flex items-center gap-3">
+        <button className="btn-primary" onClick={submit} disabled={busy}>
+          {busy
+            ? 'Working…'
             : `Add ${files.length || ''} design${files.length === 1 ? '' : 's'}`.trim()}
         </button>
-        <p className="text-xs text-zinc-500">Starts at Approved — the art already exists.</p>
+        {progress ? (
+          <span className="text-xs text-zinc-500">{progress}</span>
+        ) : (
+          <p className="text-xs text-zinc-500">Starts at Approved — the art already exists.</p>
+        )}
       </div>
-    </form>
+    </div>
   );
 }

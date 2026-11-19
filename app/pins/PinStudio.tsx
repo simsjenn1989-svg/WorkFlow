@@ -19,6 +19,8 @@ import {
 import type { PinTemplate } from '@/lib/pins/data';
 import type { RenderCard } from '@/lib/renders';
 import { uploadFiles } from '@/lib/upload-client';
+import { CopyPanel } from './CopyPanel';
+import type { CopyModel } from '@/lib/copy/generate';
 
 /**
  * The ported Pin Maker, working from finished renders instead of manual uploads.
@@ -30,9 +32,11 @@ import { uploadFiles } from '@/lib/upload-client';
 export function PinStudio({
   renders,
   templates,
+  copyModels,
 }: {
   renders: RenderCard[];
   templates: PinTemplate[];
+  copyModels: CopyModel[];
 }) {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -279,6 +283,22 @@ export function PinStudio({
           >
             Reset framing
           </button>
+        </Section>
+
+        <Section title="Write copy" open>
+          <CopyPanel
+            models={copyModels}
+            renderId={renderId}
+            onPick={(patch) =>
+              setContent((c) => ({
+                ...c,
+                ...(patch.title !== undefined ? { title: patch.title } : {}),
+                ...(patch.subtitle !== undefined ? { subtitle: patch.subtitle } : {}),
+                ...(patch.pinTitle !== undefined ? { pinTitle: patch.pinTitle } : {}),
+                ...(patch.pinDescription !== undefined ? { pinDescription: patch.pinDescription } : {}),
+              }))
+            }
+          />
         </Section>
 
         <Section title="Text" open>

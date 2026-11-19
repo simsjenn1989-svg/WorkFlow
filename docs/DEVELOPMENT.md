@@ -233,3 +233,31 @@ the themes put two identically-named buttons on one screen doing different thing
 
 The AI copy generation (`SYSTEM_PROMPT`, `buildPrompt`, `salvageJSON`) and the starred-
 headline feedback loop are not ported yet. The `style_examples` table is waiting for them.
+
+## Pin copy
+
+`SYSTEM_PROMPT` is carried over verbatim from the original tool — the bad/good examples are
+what stop a model narrating the image or writing blog headlines instead of selling a
+product, and that tuning is not re-derivable. One sentence changed: it opened "The image
+only tells you WHAT the product is", because the old tool sent a downscaled photo. Here the
+product is described in words, so that clause would be a lie to the model.
+
+Atlas writes the copy by default. Claude models join the same picker when
+`ANTHROPIC_API_KEY` is set — worth having, because the starred headlines were collected from
+Claude's output and are fed back as style examples. Both providers are one HTTP call
+returning JSON, so neither is more to maintain.
+
+Starred headlines live in `style_examples` rather than `localStorage`, so one cache clear no
+longer loses the voice the copy was learning.
+
+### Two things measured, not assumed
+
+**Token budget.** Several Atlas models think before answering and the thinking comes out of
+the same budget. On the real prompt DeepSeek spent between 579 and 1373 reasoning tokens for
+a 750-character answer, so a 1400 budget truncated it to nothing *sometimes* — the worst kind
+of bug. The budget is 3000, and a reply that still stops on `length` is retried once at 6000.
+
+**The mockup's tags are not product facts.** They describe the photograph — its scene, props
+and season — not the garment. Passing them in made the copy advertise a "Christmas tee"
+because the shirt was photographed beside a tree. Only the design's own title, tags and
+prompt describe the product.

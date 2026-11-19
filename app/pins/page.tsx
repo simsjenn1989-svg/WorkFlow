@@ -1,6 +1,7 @@
 import { isConfigured } from '@/lib/supabase';
 import { listRenders } from '@/lib/renders';
 import { listPinTemplates, listPins } from '@/lib/pins/data';
+import { anthropicModels, DEFAULT_ATLAS_MODEL, type CopyModel } from '@/lib/copy/generate';
 import { SetupNotice } from '@/app/setup/SetupNotice';
 import { PinStudio } from './PinStudio';
 
@@ -17,6 +18,17 @@ export default async function PinsPage() {
 
   const finished = renders.filter((r) => r.status === 'done' && r.url);
 
+  // Atlas writes the copy by default; Claude joins the list when a key is set, because the
+  // starred headlines were collected from Claude's output and feed back as style examples.
+  const copyModels: CopyModel[] = process.env.ATLAS_CLOUD_API_KEY
+    ? [
+        { id: DEFAULT_ATLAS_MODEL, label: 'DeepSeek V4.1 Flash — fast, reliable JSON', provider: 'atlas' },
+        { id: 'zai-org/glm-5.3-flash', label: 'GLM 5.3 Flash', provider: 'atlas' },
+        { id: 'google/gemini-4-hydrogen', label: 'Gemini 4 Hydrogen', provider: 'atlas' },
+        ...anthropicModels(),
+      ]
+    : anthropicModels();
+
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 px-5 py-6">
       <div>
@@ -32,7 +44,7 @@ export default async function PinsPage() {
           No finished renders yet. Run a batch on the Renders screen and they will appear here.
         </p>
       ) : (
-        <PinStudio renders={finished} templates={templates} />
+        <PinStudio renders={finished} templates={templates} copyModels={copyModels} />
       )}
 
       {pins.length > 0 ? (

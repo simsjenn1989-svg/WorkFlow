@@ -29,7 +29,7 @@ export function baseName(file: File): string {
 }
 
 export async function uploadFiles(
-  kind: 'design' | 'mockup',
+  kind: 'design' | 'mockup' | 'pin',
   files: File[],
   onProgress?: (done: number, total: number) => void,
 ): Promise<UploadedFile[]> {

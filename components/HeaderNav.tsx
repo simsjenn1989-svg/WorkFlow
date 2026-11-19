@@ -30,6 +30,9 @@ export function HeaderNav() {
         <Link href="/renders" className="hover:text-zinc-100">
           Renders
         </Link>
+        <Link href="/pins" className="hover:text-zinc-100">
+          Pins
+        </Link>
         <Link href="/collections" className="hover:text-zinc-100">
           Collections
         </Link>

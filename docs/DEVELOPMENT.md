@@ -207,3 +207,29 @@ previous render instead of accumulating near-identical files.
 
 Output is full resolution, since these become listing images. A design with at least one
 finished render moves to `mockups_done`.
+
+## Pins
+
+The Pin Maker ported from `legacy/pin-tool/index.html`, working from finished renders rather
+than manual uploads. The measuring and drawing maths is carried over unchanged — the
+auto-shrink loop, the gap ratios, the CTA pill proportions, the per-layout geometry. Those
+numbers came from using the tool; re-deriving them would mean re-learning them.
+
+Drawing happens on a **canvas in the browser**, unlike mockups which render server-side.
+Laying out wrapped, letter-spaced, auto-shrinking text is native to a canvas and absent from
+`sharp`, the pin redraws instantly as you type, and it costs nothing to produce. The finished
+image goes from canvas straight to storage over a signed URL; only small JSON reaches the
+server.
+
+The source render is fetched as a **blob** rather than set as an `<img src>`. A blob URL is
+same-origin, so the canvas is never tainted and `toBlob` still works — a cross-origin image
+would silently make export throw.
+
+Themes change colours only. Templates hold a whole look — size, layout, type and colours —
+and are yours to save. The migration deliberately seeds none: shipping templates named after
+the themes put two identically-named buttons on one screen doing different things.
+
+### Still to port
+
+The AI copy generation (`SYSTEM_PROMPT`, `buildPrompt`, `salvageJSON`) and the starred-
+headline feedback loop are not ported yet. The `style_examples` table is waiting for them.

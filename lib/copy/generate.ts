@@ -112,6 +112,13 @@ async function callAtlas(model: string, user: string, budget = BUDGET): Promise<
   return content;
 }
 
+/**
+ * Note the absence of `temperature`.
+ *
+ * Claude 5.5 models reject a non-default `temperature` with a 400, and from API version
+ * 2026-10-21 every model does. Variety comes from the prompt asking for five different
+ * angles, which is a better way to get it than a sampling knob.
+ */
 async function callAnthropic(model: string, user: string): Promise<string> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new CopyError('ANTHROPIC_API_KEY is not set.');
@@ -127,9 +134,12 @@ async function callAnthropic(model: string, user: string): Promise<string> {
     body: JSON.stringify({
       model,
       max_tokens: BUDGET,
-      temperature: 0.7,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: user }],
+      // Thinking is on by default on these models and comes out of max_tokens, so a short
+      // copywriting task at the default effort would spend most of the budget reasoning
+      // about five headlines. Low effort is the right setting for work this small.
+      output_config: { effort: 'low' },
     }),
   });
 

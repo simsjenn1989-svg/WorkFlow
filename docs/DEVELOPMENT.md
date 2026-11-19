@@ -151,3 +151,19 @@ single baseline would under- or over-shade one of them.
 
 The compositor reads the garment from an untouched copy of the resized photo while writing
 into the output, so overlapping areas cannot compound each other's shading.
+
+### Adjusting a print after rendering
+
+Corners alone can express any shape, but nudging a print up by a few millimetres means
+moving four of them by exactly the same amount — fiddly enough that it stops being worth
+doing. So an area can also be moved, scaled and rotated as a whole: drag inside it, use the
+arrow keys (shift for finer steps), or the Move / Size / Rotate controls.
+
+The guides stay drawn over the rendered image rather than only over the bare photo, and an
+adjustment schedules a re-render about half a second later, so the thing being positioned is
+the real output rather than an outline.
+
+Coordinates are fractions of the image, so x and y are not the same length on screen. Moving
+and scaling are unaffected — both axes take the same factor either way — but rotation is, so
+`rotateQuad` converts to a square space, turns, and converts back. Without that, rotating on
+a 4:3 photo shears the area instead of turning it.

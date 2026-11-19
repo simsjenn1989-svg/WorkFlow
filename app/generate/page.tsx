@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { isConfigured } from '@/lib/supabase';
 import { isAtlasConfigured, listImageModels } from '@/lib/atlas';
 import { budgetState, formatUsd } from '@/lib/budget';
-import { listCollections } from '@/lib/data';
+import { boardData, listCollections } from '@/lib/data';
 import { listPrompts } from '@/lib/queries';
 import { SetupNotice } from '@/app/setup/SetupNotice';
 import { GenerateForm } from './GenerateForm';
@@ -31,12 +31,19 @@ export default async function GeneratePage() {
     );
   }
 
-  const [models, prompts, collections, budget] = await Promise.all([
+  const [models, prompts, collections, budget, board] = await Promise.all([
     listImageModels(),
     listPrompts(),
     listCollections(),
     budgetState(),
+    boardData(),
   ]);
+
+  // Designs that already have artwork, so a new placement can be added to one.
+  const designs = Object.values(board)
+    .flat()
+    .filter((d) => d.artwork_labels.length > 0)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
 
   const defaultModel = models.some((m) => m.model === PREFERRED)
     ? PREFERRED
@@ -70,6 +77,7 @@ export default async function GeneratePage() {
           models={models}
           prompts={prompts}
           collections={collections}
+          designs={designs}
           defaultModel={defaultModel}
           remainingCents={budget.remainingCents}
         />

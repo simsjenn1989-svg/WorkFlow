@@ -13,6 +13,7 @@ export type Prompt = {
 export type Variant = {
   id: string;
   design_id: string;
+  label: string;
   image_path: string;
   model: string | null;
   chosen: boolean;

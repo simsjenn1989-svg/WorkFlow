@@ -1,4 +1,5 @@
 import { db, signedUrl } from './supabase';
+import { artworkPath, sortArtworks } from './artworks';
 import type { Collection, Design, DesignCard, StageEvent } from './types';
 import { ALL_STAGES, type Stage } from './stages';
 
@@ -8,7 +9,11 @@ export type DesignFilter = {
   q?: string;
 };
 
-type DesignRow = Design & { collections: { name: string } | null };
+type ArtworkRow = { label: string; image_path: string; print_ready_path: string | null };
+type DesignRow = Design & {
+  collections: { name: string } | null;
+  design_artworks: ArtworkRow[] | null;
+};
 
 /**
  * Every design, as cards keyed by stage. One query plus one signed-URL batch, rather than
@@ -19,7 +24,7 @@ export async function boardData(
 ): Promise<Record<Stage, DesignCard[]>> {
   let query = db()
     .from('designs')
-    .select('*, collections(name)')
+    .select('*, collections(name), design_artworks(label,image_path,print_ready_path)')
     .order('stage_changed_at', { ascending: true });
 
   if (filter.collectionId) query = query.eq('collection_id', filter.collectionId);
@@ -41,18 +46,22 @@ export async function boardData(
 }
 
 async function toCard(row: DesignRow): Promise<DesignCard> {
-  const { collections, ...design } = row;
+  const { collections, design_artworks, ...design } = row;
+  // Front first, so the thumbnail is the primary artwork rather than whichever row came back first.
+  const artworks = sortArtworks(design_artworks ?? []);
+  const primary = artworks[0];
   return {
     ...design,
     collection_name: collections?.name ?? null,
-    image_url: await signedUrl(design.print_ready_path ?? design.raw_image_path),
+    image_url: primary ? await signedUrl(artworkPath(primary)) : null,
+    artwork_labels: artworks.map((a) => a.label),
   };
 }
 
 export async function getDesign(id: string): Promise<DesignCard | null> {
   const { data, error } = await db()
     .from('designs')
-    .select('*, collections(name)')
+    .select('*, collections(name), design_artworks(label,image_path,print_ready_path)')
     .eq('id', id)
     .maybeSingle();
   if (error) throw new Error(`Loading the design failed: ${error.message}`);

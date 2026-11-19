@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { db } from '@/lib/supabase';
 import { assertWithinBudget } from '@/lib/budget';
 import { estimateCents, getModel, isAtlasConfigured, startGeneration } from '@/lib/atlas';
+import { normaliseLabel, PRIMARY_LABEL } from '@/lib/artworks';
 
 export const runtime = 'nodejs';
 
@@ -22,6 +23,10 @@ const schema = z.object({
   collectionId: z.string().uuid().nullable().default(null),
   promptId: z.string().uuid().nullable().default(null),
   tags: z.array(z.string().trim().min(1).max(60)).max(40).default([]),
+  /** Which placement this art is for. */
+  label: z.string().trim().max(40).default(PRIMARY_LABEL),
+  /** Generate onto an existing design — how a back print joins a design that has a front. */
+  designId: z.string().uuid().nullable().default(null),
 });
 
 /**
@@ -55,22 +60,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: (error as Error).message }, { status: 402 });
   }
 
-  const designId = randomUUID();
-  const { error: designError } = await db().from('designs').insert({
-    id: designId,
-    title: titleFrom(input.prompt),
-    stage: 'generated',
-    collection_id: input.collectionId,
-    prompt_id: input.promptId,
-    tags: input.tags,
-    source_model: model.model,
-    source_params: { ...input.params, prompt: input.prompt, n: input.count },
-  });
-  if (designError) {
-    return NextResponse.json(
-      { error: `Saving the design failed: ${designError.message}` },
-      { status: 500 },
-    );
+  const label = normaliseLabel(input.label);
+  const createdDesign = !input.designId;
+  let designId = input.designId ?? '';
+
+  if (createdDesign) {
+    designId = randomUUID();
+    const { error: designError } = await db().from('designs').insert({
+      id: designId,
+      title: titleFrom(input.prompt),
+      stage: 'generated',
+      collection_id: input.collectionId,
+      prompt_id: input.promptId,
+      tags: input.tags,
+      source_model: model.model,
+      source_params: { ...input.params, prompt: input.prompt, n: input.count },
+    });
+    if (designError) {
+      return NextResponse.json(
+        { error: `Saving the design failed: ${designError.message}` },
+        { status: 500 },
+      );
+    }
+  } else {
+    const { data: existing } = await db()
+      .from('designs')
+      .select('id')
+      .eq('id', designId)
+      .maybeSingle();
+    if (!existing) return NextResponse.json({ error: 'No such design.' }, { status: 404 });
   }
 
   let predictionId: string;
@@ -81,8 +99,9 @@ export async function POST(request: Request) {
     });
     predictionId = prediction.id;
   } catch (error) {
-    // Nothing was generated, so don't leave an empty card sitting on the board.
-    await db().from('designs').delete().eq('id', designId);
+    // Nothing was generated, so don't leave an empty card sitting on the board. An existing
+    // design is left alone — it has art already.
+    if (createdDesign) await db().from('designs').delete().eq('id', designId);
     return NextResponse.json({ error: (error as Error).message }, { status: 502 });
   }
 
@@ -90,7 +109,7 @@ export async function POST(request: Request) {
     kind: 'atlas.generate',
     status: 'running',
     cost_cents: costCents,
-    payload: { designId, predictionId, model: model.model, count: input.count },
+    payload: { designId, predictionId, model: model.model, count: input.count, label, createdDesign },
   });
 
   return NextResponse.json({ designId, predictionId, costCents });

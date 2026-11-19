@@ -18,8 +18,6 @@ export type Design = {
   source_model: string | null;
   source_params: unknown;
   seed: string | null;
-  raw_image_path: string | null;
-  print_ready_path: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -35,8 +33,14 @@ export type StageEvent = {
   created_at: string;
 };
 
-/** A design joined to its collection name and a displayable image URL. */
+/**
+ * A design joined to its collection name and a thumbnail.
+ *
+ * The thumbnail is the design's primary artwork; `artwork_labels` says which placements it
+ * actually has, so the board can show that a design is front-only at a glance.
+ */
 export type DesignCard = Design & {
   collection_name: string | null;
   image_url: string | null;
+  artwork_labels: string[];
 };

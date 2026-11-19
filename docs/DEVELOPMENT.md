@@ -167,3 +167,22 @@ Coordinates are fractions of the image, so x and y are not the same length on sc
 and scaling are unaffected — both axes take the same factor either way — but rotation is, so
 `rotateQuad` converts to a square space, turns, and converts back. Without that, rotating on
 a 4:3 photo shears the area instead of turning it.
+
+## A design holds artwork per placement
+
+A tee with a big front graphic and different back text is one design, not two. Artwork lives
+in `design_artworks`, keyed by a placement label (`front`, `back`, `sleeve`, …), one row per
+placement. Rendering matches an artwork to a print area by that label.
+
+There is deliberately **no fallback**. An area labelled `back` on a design with only front
+art is refused with a message, rather than quietly printing the front graphic twice — which
+is the exact mistake this model exists to prevent, and which would be easy to miss in a
+batch of fifty renders.
+
+`designs.raw_image_path` and `print_ready_path` are gone. Keeping them as a "primary image"
+beside the artwork table would have been two sources of truth for the same thing. The board
+thumbnail is the design's front artwork, or its first if it has no front.
+
+Generation targets a placement too, and can be pointed at an existing design, which is how
+a back print joins a design that already has a front. Variants remember which placement
+they were generated for, so choosing one replaces only that artwork.

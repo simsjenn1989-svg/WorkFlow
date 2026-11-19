@@ -16,7 +16,14 @@ type JobRow = {
   id: string;
   status: string;
   cost_cents: number;
-  payload: { designId: string; predictionId: string; model: string; count: number };
+  payload: {
+    designId: string;
+    predictionId: string;
+    model: string;
+    count: number;
+    label?: string;
+    createdDesign?: boolean;
+  };
 };
 
 /**
@@ -68,8 +75,11 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       .from('jobs')
       .update({ status: 'failed', error: prediction.error, finished_at: new Date().toISOString() })
       .eq('id', job.id);
-    // The design has no art, so it goes back to being just an idea rather than a dead card.
-    await db().from('designs').update({ stage: 'idea' }).eq('id', designId);
+    // A design created for this generation has no art, so it goes back to being an idea
+    // rather than a dead card. One that already had art keeps its stage.
+    if (job.payload.createdDesign !== false) {
+      await db().from('designs').update({ stage: 'idea' }).eq('id', designId);
+    }
     return NextResponse.json({
       status: 'failed',
       designId,
@@ -93,6 +103,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       await db().from('design_variants').insert({
         id: variantId,
         design_id: designId,
+        label: job.payload.label ?? 'front',
         image_path: path,
         model: job.payload.model,
         params: { index },
@@ -126,17 +137,17 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 async function variantsFor(designId: string) {
   const { data } = await db()
     .from('design_variants')
-    .select('id,image_path,chosen')
+    .select('id,image_path,chosen,label')
     .eq('design_id', designId)
     .order('created_at', { ascending: true });
 
-  const rows = (data ?? []) as { id: string; image_path: string; chosen: boolean }[];
+  const rows = (data ?? []) as { id: string; image_path: string; chosen: boolean; label: string }[];
   return Promise.all(
     rows.map(async (row) => {
       const { data: signed } = await db()
         .storage.from(BUCKET)
         .createSignedUrl(row.image_path, 3600);
-      return { id: row.id, chosen: row.chosen, url: signed?.signedUrl ?? null };
+      return { id: row.id, chosen: row.chosen, label: row.label, url: signed?.signedUrl ?? null };
     }),
   );
 }

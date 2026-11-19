@@ -5,6 +5,7 @@ import { BUCKET, db } from '@/lib/supabase';
 import { renderMockup, type Placement } from '@/lib/render/compose';
 import { describeAreaProblem } from '@/lib/render/homography';
 import { toPixelQuad, type NormQuad } from '@/lib/mockups';
+import { artworkForArea, artworkMap } from '@/lib/artworks';
 
 export const runtime = 'nodejs';
 
@@ -53,25 +54,19 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (!template) return NextResponse.json({ error: 'No such mockup.' }, { status: 404 });
 
   const designIds = [...new Set(parsed.data.placements.map((p) => p.designId))];
-  const { data: designRows } = await db()
-    .from('designs')
-    .select('id,raw_image_path,print_ready_path')
-    .in('id', designIds);
+  const byDesign = await artworkMap(designIds);
 
-  const artPaths = new Map<string, string>();
-  for (const row of (designRows ?? []) as {
-    id: string;
-    raw_image_path: string | null;
-    print_ready_path: string | null;
-  }[]) {
-    const path = row.print_ready_path ?? row.raw_image_path;
-    if (path) artPaths.set(row.id, path);
-  }
+  // An area takes the artwork whose label matches it. There is deliberately no fallback:
+  // using the front art for a back area would silently print the same graphic twice.
+  const chosen = parsed.data.placements.map((p) => ({
+    ...p,
+    path: artworkForArea(byDesign.get(p.designId), p.label),
+  }));
 
-  const missing = parsed.data.placements.find((p) => !artPaths.has(p.designId));
+  const missing = chosen.find((p) => !p.path);
   if (missing) {
     return NextResponse.json(
-      { error: `The design for "${missing.label}" has no image yet — pick a variant first.` },
+      { error: `That design has no "${missing.label}" artwork. Add one, or rename the area.` },
       { status: 400 },
     );
   }
@@ -87,22 +82,22 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const width = meta.width ?? 0;
   const height = meta.height ?? 0;
 
-  // Each distinct design is downloaded once even when used in several areas.
+  // Each distinct file is downloaded once even when used by several areas.
   const art = new Map<string, Buffer>();
-  for (const [designId, path] of artPaths) {
+  for (const path of new Set(chosen.map((p) => p.path!))) {
     const file = await db().storage.from(BUCKET).download(path);
     if (file.error || !file.data) {
       return NextResponse.json({ error: 'A design image could not be read.' }, { status: 500 });
     }
-    art.set(designId, Buffer.from(await file.data.arrayBuffer()));
+    art.set(path, Buffer.from(await file.data.arrayBuffer()));
   }
 
   const placements: Placement[] = [];
-  for (const p of parsed.data.placements) {
+  for (const p of chosen) {
     const quad = toPixelQuad(p.corners as NormQuad, width, height);
     const problem = describeAreaProblem(quad, width, height);
     if (problem) return NextResponse.json({ error: `${p.label}: ${problem}` }, { status: 400 });
-    placements.push({ quad, design: art.get(p.designId)! });
+    placements.push({ quad, design: art.get(p.path!)! });
   }
 
   try {

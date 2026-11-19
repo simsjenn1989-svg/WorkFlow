@@ -11,6 +11,8 @@ import { ActionForm } from '@/components/ActionForm';
 import { DangerButton } from '@/components/DangerButton';
 import { VariantPicker } from '@/components/VariantPicker';
 import { listVariants } from '@/lib/queries';
+import { listArtworks } from '@/lib/artworks';
+import { ArtworkPanel } from '@/components/ArtworkPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,10 +23,11 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
   const design = await getDesign(id);
   if (!design) notFound();
 
-  const [history, collections, variants] = await Promise.all([
+  const [history, collections, variants, artworks] = await Promise.all([
     getStageHistory(id),
     listCollections(),
     listVariants(id),
+    listArtworks(id),
   ]);
   const meta = STAGE_META[design.stage];
 
@@ -113,6 +116,8 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
         </div>
 
         <aside className="space-y-4">
+          <ArtworkPanel designId={design.id} artworks={artworks} />
+
           <section className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
             <h2 className="mb-3 text-sm font-semibold">Provenance</h2>
             <dl className="space-y-2 text-xs">
@@ -120,8 +125,8 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
               <Row label="Seed" value={design.seed} />
               <Row label="Created" value={new Date(design.created_at).toLocaleString()} />
               <Row
-                label="Print ready"
-                value={design.print_ready_path ? 'Yes' : 'Not yet'}
+                label="Placements"
+                value={design.artwork_labels.join(', ') || 'none yet'}
               />
             </dl>
             {!design.source_model ? (

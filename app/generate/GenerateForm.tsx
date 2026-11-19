@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { AtlasField, AtlasModel } from '@/lib/atlas';
 import type { Prompt } from '@/lib/queries';
-import type { Collection } from '@/lib/types';
+import type { Collection, DesignCard } from '@/lib/types';
+import { COMMON_LABELS, PRIMARY_LABEL } from '@/lib/artworks';
 import { fillSlots, slotsIn } from '@/lib/queries';
 
 type Phase = 'idle' | 'starting' | 'generating' | 'done' | 'error';
@@ -16,12 +17,14 @@ export function GenerateForm({
   models,
   prompts,
   collections,
+  designs,
   defaultModel,
   remainingCents,
 }: {
   models: AtlasModel[];
   prompts: Prompt[];
   collections: Collection[];
+  designs: DesignCard[];
   defaultModel: string;
   remainingCents: number;
 }) {
@@ -35,6 +38,8 @@ export function GenerateForm({
   const [count, setCount] = useState(2);
   const [collectionId, setCollectionId] = useState('');
   const [tags, setTags] = useState('');
+  const [label, setLabel] = useState<string>(PRIMARY_LABEL);
+  const [targetDesignId, setTargetDesignId] = useState('');
 
   const [fields, setFields] = useState<AtlasField[]>([]);
   const [params, setParams] = useState<Record<string, string>>({});
@@ -123,6 +128,8 @@ export function GenerateForm({
           params: typed,
           collectionId: collectionId || null,
           promptId: promptId || null,
+          label,
+          designId: targetDesignId || null,
           tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
         }),
       });
@@ -292,16 +299,57 @@ export function GenerateForm({
             />
           </label>
           <label className="block space-y-1 text-xs text-zinc-400">
-            Collection
-            <select className="field" value={collectionId} onChange={(e) => setCollectionId(e.target.value)}>
-              <option value="">None</option>
-              {collections.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
+            Placement
+            <input
+              name="placement"
+              className="field"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              list="generate-placements"
+              maxLength={40}
+            />
+            <datalist id="generate-placements">
+              {COMMON_LABELS.map((l) => (
+                <option key={l} value={l} />
+              ))}
+            </datalist>
+          </label>
+
+          <label className="block space-y-1 text-xs text-zinc-400">
+            Add to
+            <select
+              name="targetDesign"
+              className="field"
+              value={targetDesignId}
+              onChange={(e) => setTargetDesignId(e.target.value)}
+            >
+              <option value="">A new design</option>
+              {designs.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.title} ({d.artwork_labels.join(', ')})
                 </option>
               ))}
             </select>
           </label>
+
+          {targetDesignId ? (
+            <p className="text-[11px] leading-relaxed text-zinc-600">
+              The result becomes this design&rsquo;s {label || 'front'} artwork, replacing any
+              it already has for that placement.
+            </p>
+          ) : (
+            <label className="block space-y-1 text-xs text-zinc-400">
+              Collection
+              <select className="field" value={collectionId} onChange={(e) => setCollectionId(e.target.value)}>
+                <option value="">None</option>
+                {collections.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="block space-y-1 text-xs text-zinc-400">
             Tags
             <input

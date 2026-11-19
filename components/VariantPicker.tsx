@@ -52,6 +52,9 @@ export function VariantPicker({ designId, variants }: { designId: string; varian
                 </div>
               )}
             </div>
+            <p className="truncate bg-zinc-950 px-2 py-0.5 text-[10px] text-zinc-500">
+              {variant.label}
+            </p>
             <button
               className={`w-full px-2 py-1.5 text-[11px] ${
                 variant.chosen

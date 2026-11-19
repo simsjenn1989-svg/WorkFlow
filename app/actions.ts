@@ -52,8 +52,6 @@ export async function uploadDesigns(form: FormData): Promise<ActionResult> {
     if (file.size > MAX_BYTES) return fail(`${file.name} is larger than 40 MB.`);
   }
 
-  const single = files.length === 1;
-
   for (const [i, file] of files.entries()) {
     const id = randomUUID();
     const ext = file.name.split('.').pop()?.toLowerCase() ?? 'png';
@@ -64,8 +62,10 @@ export async function uploadDesigns(form: FormData): Promise<ActionResult> {
       .upload(path, file, { contentType: file.type, upsert: false });
     if (upErr) return fail(`Uploading ${file.name} failed: ${upErr.message}`);
 
-    const base = parsed.data.title?.trim() || stripExt(file.name);
-    const title = single ? base : `${base} ${i + 1}`;
+    // A shared title across several files gets numbered; file names are already distinct,
+    // so numbering them would just produce "ghost mode 2" for the only Ghost Mode.
+    const given = parsed.data.title?.trim();
+    const title = given ? (files.length > 1 ? `${given} ${i + 1}` : given) : stripExt(file.name);
 
     const { error: insErr } = await db().from('designs').insert({
       id,

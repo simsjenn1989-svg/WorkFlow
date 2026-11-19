@@ -7,6 +7,12 @@ import { SubmitButton } from '@/components/SubmitButton';
 import { ActionForm } from '@/components/ActionForm';
 import { DangerButton } from '@/components/DangerButton';
 
+/**
+ * Always rendered per request. The board reflects live database state, so a build-time
+ * snapshot would be both stale and impossible to produce without network access.
+ */
+export const dynamic = 'force-dynamic';
+
 export default async function CollectionsPage() {
   if (!isConfigured) return <SetupNotice />;
 

@@ -186,3 +186,24 @@ thumbnail is the design's front artwork, or its first if it has no front.
 Generation targets a placement too, and can be pointed at an existing design, which is how
 a back print joins a design that already has a front. Variants remember which placement
 they were generated for, so choosing one replaces only that artwork.
+
+## Batch rendering
+
+A run is a set of design × mockup pairs, one row each in `renders`. A pair whose design has
+no artwork for one of the mockup's print areas is **skipped and listed**, never part-rendered
+— a listing image silently missing its back print is the kind of thing nobody notices until
+it is live. The skip count and its reasons are shown before the run starts, not after.
+
+Mockups are chosen rather than assumed, because single-sided and double-sided products are
+run as separate passes.
+
+`POST /api/renders/run` renders exactly **one** pair per request. A batch of fifty would
+never finish inside a serverless function's time limit, and one long call that dies halfway
+leaves nothing to resume from. One row per invocation keeps every call short and makes a
+batch restartable: the client calls again while anything is still queued.
+
+A unique index on `(design_id, mockup_template_id)` means re-running a pair replaces its
+previous render instead of accumulating near-identical files.
+
+Output is full resolution, since these become listing images. A design with at least one
+finished render moves to `mockups_done`.

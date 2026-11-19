@@ -8,7 +8,7 @@
 | First product | Comfort Colors 1717, Printify Choice provider, **black only** | 2026-11-19 |
 | Sales channels | TikTok Shop + Etsy | 2026-11-19 |
 | Design generation | Atlas Cloud, inside the app | 2026-11-19 |
-| Mockup sources | PSD first (yours cover the 1717); photo + manual marking after | 2026-11-19 |
+| Mockup sources | JPG/PNG photos only. PSD dropped — not enough exist in the wanted style | 2026-11-19 |
 | Pins | Composed locally, zero API credits | 2026-11-19 |
 | UGC video | Atlas Cloud image-to-video, from mockup renders | 2026-11-19 |
 | Listing polish | Claude via the Playground AI connector, not rebuilt in-app | 2026-11-19 |
@@ -41,18 +41,21 @@ fetches and caches per preset instead.
    fake convincingly, so the ink simulation in SPEC §2 matters more than it would on white.
    It also means the print-ready checker flags art that is *too dark*, not too light.
 
-3. **PSDs cover the 1717** — so PSD import becomes the primary mockup path rather than a
-   later addition. The smart-object transform gives the print area automatically and the
-   PSD's own shading layers beat anything extracted from a flat photo. The manual
-   print-area editor is still built, but after PSD import and for templates that lack a PSD.
+3. **PSD dropped entirely** (revised 2026-11-19). There are not enough PSD mockups in the
+   style wanted, so the pipeline takes ordinary JPG and PNG photos instead. This removes the
+   Phase 3 blocker — no files to wait for — but it also removes the free ride: the print
+   area must be marked by hand and the shading derived from the photo, with no smart-object
+   transform and no ready-made shading layers to borrow. The hand-marking editor and the
+   extraction are now the only path, so the quality bar for both goes up.
 
 ## Open questions
 
 1. **Printify shop ID** — needed to push drafts. Retrievable from the API once the token is
    set, so not blocking.
 
-2. **Which PSDs, and how many** — the PSD files themselves are needed before Phase 3. A flat
-   lay, a hanging shot, a worn front, and one lifestyle scene is plenty to prove the engine.
+2. **Which mockup photos** — a handful of blank black 1717 shots: a flat lay, a hanging
+   shot, a worn front, and one lifestyle scene is plenty to prove the engine. Nothing
+   blocks building the editor before they arrive.
 
 3. **Design brightness constraint** — on black only, every design needs enough contrast to
    read. Worth deciding whether the Atlas prompt library should bake "light colors on dark
@@ -62,6 +65,7 @@ fetches and caches per preset instead.
 
 | Risk | Mitigation |
 |------|-----------|
+| Everything now rides on shading extraction from flat photos, with no PSD layers to fall back on | The reason the Phase 3 quality check matters more than it did. If extraction loses the comparison, it gets fixed before anything is built on top |
 | Renders look pasted-on, not printed | Phase 3 ends with a blind side-by-side against your best existing mockups. If it loses, the render pipeline gets fixed before anything else is built on it |
 | White ink on black looks fake | The hardest case, and the only one that matters since you sell black. Handled explicitly in SPEC §2 and judged in the Phase 3 comparison |
 | Atlas spend runs away | Quote before every paid call, monthly ceiling, per-design cost ledger |

@@ -39,7 +39,7 @@ technique is standard compositing, applied once per mockup template and reused f
 
 ### Prepared once, per mockup
 
-1. **Upload** the blank-product photo (JPG/PNG) or PSD.
+1. **Upload** the blank-product photo (JPG or PNG).
 2. **Mark the print area.** Drag four corners for a flat area; switch to a warp mesh
    (default 4×4, subdividable) for curved or wrinkled fabric. Stored as normalized
    coordinates so it survives any later resizing of the source photo.
@@ -68,18 +68,21 @@ Steps 1–5 happen a single time per template. They are never repeated.
 Preview runs in WebGL in the browser (instant, interactive). Final export runs server-side
 with `sharp` for full resolution and color accuracy.
 
-### PSD vs photo
+### Photos only
 
-Support both.
+Mockups are ordinary JPG or PNG photos. PSDs were considered and dropped: there simply are
+not enough in the style wanted, and a pipeline that depends on finding them is a pipeline
+that keeps stalling.
 
-- **PSD**: read the smart-object layer's transform to get the print area automatically, and
-  reuse the PSD's own shading layers, which are usually better than anything extracted from a
-  flat photo. Best quality, least setup.
-- **JPG/PNG**: mark the area by hand, extract shading automatically as above.
+The cost of that is real and worth stating plainly. A PSD hands over the print area from its
+smart-object transform and brings its own shading layers, both better than anything derived
+from a flat image. Without one, **everything rests on marking the area by hand and
+extracting the shading from the photo itself**. The editor and the extraction in this section
+are no longer a fallback path — they are the only path, and they are what decides whether a
+render reads as printed or pasted.
 
-Your existing PSDs cover the 1717, so PSD import is built first — it removes the manual
-marking step entirely and gives better shading. The hand-marking editor follows, for any
-mockup that has no PSD.
+The upside: no hunting for files that may not exist, any photo you like becomes a mockup,
+and the work needed is the work that had to be built anyway.
 
 ---
 
@@ -254,7 +257,7 @@ design_variants    id, design_id, image_path, model, params, chosen(bool), cost_
 
 products           id, name, blueprint_id, print_provider_id,
                    variants(jsonb), placement(jsonb), pricing(jsonb)
-mockup_templates   id, product_id, name, source_type(photo|psd),
+mockup_templates   id, product_id, name, source_type(photo),
                    source_path, print_area(jsonb: corners|mesh),
                    shadow_map_path, highlight_map_path, mask_path,
                    garment_color, tags[](angle, scene, colorway), active
@@ -305,7 +308,6 @@ No more `final_v3_ACTUAL_final.png`.
 | DB + storage | Supabase (Postgres + Storage) | already connected; Postgres suits the relational pipeline |
 | Preview render | WebGL (`regl` or raw canvas2d) | interactive, no round-trip |
 | Export render | `sharp` + custom warp | full resolution, correct color |
-| PSD parsing | `ag-psd` | reads smart-object transforms |
 | Queue | Postgres `jobs` table, polled | one user; a real queue is unnecessary complexity |
 | Auth | Supabase Auth, single account | just you |
 
@@ -337,9 +339,8 @@ wired in.
 **Phase 2 — Atlas generation.** Prompt library, model picker, batch generate, variant
 picker, cost quoting and ledger. Transparent-background output.
 
-**Phase 3 — mockups.** PSD import first (your 1717 PSDs give the print area and shading
-automatically), then the manual print-area editor (corners + mesh) and shading extraction for
-templates without a PSD. WebGL preview, server export, DTG-on-black ink simulation. *This is the phase that decides whether the whole
+**Phase 3 — mockups.** Photo upload, the print-area editor (corners + mesh), automatic
+shading extraction, WebGL preview, server export, DTG-on-black ink simulation. *This is the phase that decides whether the whole
 app is worth using, so it gets a real side-by-side quality check against your best existing
 mockups before moving on.*
 
@@ -352,7 +353,7 @@ presets.
 **Phase 6 — UGC video.** Shot library, image-to-video, cost confirmation, 9:16 output.
 
 **Phase 7 — polish.** Batch mode across designs × mockups × colorways, search, duplicate
-detection, PSD import, more product types.
+detection, more product types.
 
 ---
 

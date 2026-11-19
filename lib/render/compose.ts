@@ -4,57 +4,72 @@ import { DEFAULT_OPTIONS, type RenderOptions } from './options';
 
 export { DEFAULT_OPTIONS, type RenderOptions };
 
+/**
+ * One design placed into one marked area.
+ *
+ * A mockup can hold several: a photo showing front and back together needs two, each with
+ * its own artwork, which is the whole point of a front-and-back listing image.
+ */
+export type Placement = {
+  quad: Quad;
+  design: Buffer;
+  /** Per-area overrides. The two halves of a composite photo are often lit differently. */
+  options?: Partial<RenderOptions>;
+};
+
 export type RenderInput = {
   mockup: Buffer;
-  design: Buffer;
-  quad: Quad;
+  placements: Placement[];
   options?: Partial<RenderOptions>;
   /** Longest edge of the output. Smaller values give a quick preview from the same code. */
   maxEdge?: number;
+};
+
+export type PlacementMeasurement = {
+  /** Median blurred luminance inside the area — the base the light map is measured against. */
+  baseLuma: number;
+  garmentHex: string;
 };
 
 export type RenderResult = {
   jpeg: Buffer;
   width: number;
   height: number;
-  /** Median luminance inside the print area — the base the light map is measured against. */
-  baseLuma: number;
-  garmentHex: string;
+  placements: PlacementMeasurement[];
 };
 
 const luma = (r: number, g: number, b: number) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
 
 /**
- * Composite a design onto a garment photo.
+ * Composite one or more designs onto a garment photo.
  *
  * The method is deliberately simple and it is the reason the result reads as printed rather
- * than pasted: the garment's own luminance, relative to the median inside the print area,
+ * than pasted: the garment's own luminance, relative to the median inside each print area,
  * is used as a multiplier. That single ratio carries the folds, the drape and the fabric
  * weave at once, because all three are already in the photograph. Nothing is invented.
  *
- * Measuring against the median per template matters. On a near-black tee the absolute
- * luminance range can be as narrow as 32 of 255, which as an absolute shadow map would be
- * almost invisible; as a ratio against a median of about 23 it spans roughly 0.35x to 1.75x,
- * which is plenty.
+ * Measuring per area matters twice over. On a near-black tee the absolute luminance range
+ * can be as narrow as 32 of 255, which as an absolute shadow map would be almost invisible;
+ * as a ratio against a median of about 23 it spans roughly 0.35x to 1.75x. And when one
+ * photograph holds a front and a back shot side by side, the two halves are lit differently,
+ * so a single baseline for the whole image would be wrong for both.
  */
 export async function renderMockup(input: RenderInput): Promise<RenderResult> {
-  const options = { ...DEFAULT_OPTIONS, ...input.options };
+  const baseOptions = { ...DEFAULT_OPTIONS, ...input.options };
 
   const base = sharp(input.mockup).rotate();
   const meta = await base.metadata();
   const fullWidth = meta.width ?? 0;
   const fullHeight = meta.height ?? 0;
   if (!fullWidth || !fullHeight) throw new Error('That mockup image could not be read.');
+  if (input.placements.length === 0) throw new Error('Nothing to place on this mockup.');
 
-  // Scale the whole job if a smaller output was asked for; the quad scales with it.
   const maxEdge = input.maxEdge ?? Math.max(fullWidth, fullHeight);
   const scale = Math.min(1, maxEdge / Math.max(fullWidth, fullHeight));
   const width = Math.round(fullWidth * scale);
   const height = Math.round(fullHeight * scale);
-  const quad = input.quad.map((p) => ({ x: p.x * scale, y: p.y * scale })) as Quad;
 
   const resized = await base.resize(width, height, { fit: 'fill' }).removeAlpha().toBuffer();
-
   const { data: mock } = await sharp(resized).raw().toBuffer({ resolveWithObject: true });
 
   // Two luminance maps. The blurred one carries the folds and drape; dividing the sharp one
@@ -67,108 +82,102 @@ export async function renderMockup(input: RenderInput): Promise<RenderResult> {
     .raw()
     .toBuffer({ resolveWithObject: true });
 
-  // Feathering the design's alpha before warping is cheaper and smoother than feathering
-  // in the loop, and it scales with the design rather than the output.
-  const designPipeline = sharp(input.design).ensureAlpha();
-  const designMeta = await designPipeline.metadata();
-  const dw = designMeta.width ?? 0;
-  const dh = designMeta.height ?? 0;
-  if (!dw || !dh) throw new Error('That design image could not be read.');
-
-  const { data: art } = await (options.featherPx > 0
-    ? sharp(await designPipeline.toBuffer()).blur(Math.max(0.3, options.featherPx))
-    : designPipeline
-  )
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const toQuad = unitSquareToQuad(quad);
-  const toUnit = invert(toQuad);
-  const bounds = boundsOf(quad, width, height);
-
-  // Median luminance inside the print area, and the garment's own colour there.
-  const samples: number[] = [];
-  let rSum = 0;
-  let gSum = 0;
-  let bSum = 0;
-  let counted = 0;
-  const step = Math.max(1, Math.floor(Math.min(bounds.right - bounds.left, bounds.bottom - bounds.top) / 160));
-
-  for (let y = bounds.top; y < bounds.bottom; y += step) {
-    for (let x = bounds.left; x < bounds.right; x += step) {
-      const u = apply(toUnit, { x: x + 0.5, y: y + 0.5 });
-      if (u.x < 0 || u.x > 1 || u.y < 0 || u.y > 1) continue;
-      const i = (y * width + x) * 3;
-      const r = mock[i]!;
-      const g = mock[i + 1]!;
-      const b = mock[i + 2]!;
-      // Measured on the blurred map, so one bright speck cannot shift the baseline.
-      samples.push(greyLow[y * width + x]!);
-      rSum += r;
-      gSum += g;
-      bSum += b;
-      counted++;
-    }
-  }
-  if (counted === 0) throw new Error('The print area does not overlap the image.');
-
-  samples.sort((a, b) => a - b);
-  const baseLuma = Math.max(1, samples[Math.floor(samples.length / 2)]!);
-  const garment = {
-    r: rSum / counted,
-    g: gSum / counted,
-    b: bSum / counted,
-  };
-
   const out = Buffer.from(mock);
+  const measurements: PlacementMeasurement[] = [];
 
-  for (let y = bounds.top; y < bounds.bottom; y++) {
-    for (let x = bounds.left; x < bounds.right; x++) {
-      const u = apply(toUnit, { x: x + 0.5, y: y + 0.5 });
-      if (u.x < 0 || u.x > 1 || u.y < 0 || u.y > 1) continue;
+  for (const placement of input.placements) {
+    const options = { ...baseOptions, ...placement.options };
+    const quad = placement.quad.map((p) => ({ x: p.x * scale, y: p.y * scale })) as Quad;
 
-      const ink = sampleBilinear(art, dw, dh, u.x * (dw - 1), u.y * (dh - 1));
-      const alpha = (ink.a / 255) * options.inkOpacity;
-      if (alpha <= 0.002) continue;
+    // Feathering the alpha before warping is cheaper and smoother than feathering in the
+    // loop, and it scales with the design rather than the output.
+    const designPipeline = sharp(placement.design).ensureAlpha();
+    const designMeta = await designPipeline.metadata();
+    const dw = designMeta.width ?? 0;
+    const dh = designMeta.height ?? 0;
+    if (!dw || !dh) throw new Error('A design image could not be read.');
 
-      const i = (y * width + x) * 3;
-      const gr = mock[i]!;
-      const gg = mock[i + 1]!;
-      const gb = mock[i + 2]!;
+    const { data: art } = await (options.featherPx > 0
+      ? sharp(await designPipeline.toBuffer()).blur(Math.max(0.3, options.featherPx))
+      : designPipeline
+    )
+      .raw()
+      .toBuffer({ resolveWithObject: true });
 
-      // Folds and drape, measured against the print area's median.
-      const low = greyLow[y * width + x]!;
-      const fold = Math.pow(Math.max(0.04, low / baseLuma), options.shadingStrength);
+    const toUnit = invert(unitSquareToQuad(quad));
+    const bounds = boundsOf(quad, width, height);
 
-      // Weave and grain: what the sharp luminance has over the blurred one.
-      const texture = Math.pow(
-        Math.max(0.04, (grey[y * width + x]! + 0.5) / (low + 0.5)),
-        options.textureStrength,
-      );
+    // Baseline and garment colour for this area alone.
+    const samples: number[] = [];
+    let rSum = 0;
+    let gSum = 0;
+    let bSum = 0;
+    let counted = 0;
+    const step = Math.max(
+      1,
+      Math.floor(Math.min(bounds.right - bounds.left, bounds.bottom - bounds.top) / 160),
+    );
 
-      const shade = fold * texture;
-
-      const r = shadeChannel(ink.r, shade, garment.r, options.bleed);
-      const g = shadeChannel(ink.g, shade, garment.g, options.bleed);
-      const b = shadeChannel(ink.b, shade, garment.b, options.bleed);
-
-      out[i] = clamp8(gr + (r - gr) * alpha);
-      out[i + 1] = clamp8(gg + (g - gg) * alpha);
-      out[i + 2] = clamp8(gb + (b - gb) * alpha);
+    for (let y = bounds.top; y < bounds.bottom; y += step) {
+      for (let x = bounds.left; x < bounds.right; x += step) {
+        const u = apply(toUnit, { x: x + 0.5, y: y + 0.5 });
+        if (u.x < 0 || u.x > 1 || u.y < 0 || u.y > 1) continue;
+        const i = (y * width + x) * 3;
+        rSum += mock[i]!;
+        gSum += mock[i + 1]!;
+        bSum += mock[i + 2]!;
+        // Measured on the blurred map, so one bright speck cannot shift the baseline.
+        samples.push(greyLow[y * width + x]!);
+        counted++;
+      }
     }
+    if (counted === 0) throw new Error('A print area does not overlap the image.');
+
+    samples.sort((a, b) => a - b);
+    const baseLuma = Math.max(1, samples[Math.floor(samples.length / 2)]!);
+    const garment = { r: rSum / counted, g: gSum / counted, b: bSum / counted };
+
+    for (let y = bounds.top; y < bounds.bottom; y++) {
+      for (let x = bounds.left; x < bounds.right; x++) {
+        const u = apply(toUnit, { x: x + 0.5, y: y + 0.5 });
+        if (u.x < 0 || u.x > 1 || u.y < 0 || u.y > 1) continue;
+
+        const ink = sampleBilinear(art, dw, dh, u.x * (dw - 1), u.y * (dh - 1));
+        const alpha = (ink.a / 255) * options.inkOpacity;
+        if (alpha <= 0.002) continue;
+
+        const i = (y * width + x) * 3;
+        // Read the garment from the untouched copy, so overlapping areas cannot compound.
+        const gr = mock[i]!;
+        const gg = mock[i + 1]!;
+        const gb = mock[i + 2]!;
+
+        const low = greyLow[y * width + x]!;
+        const fold = Math.pow(Math.max(0.04, low / baseLuma), options.shadingStrength);
+        const texture = Math.pow(
+          Math.max(0.04, (grey[y * width + x]! + 0.5) / (low + 0.5)),
+          options.textureStrength,
+        );
+        const shade = fold * texture;
+
+        const r = shadeChannel(ink.r, shade, garment.r, options.bleed);
+        const g = shadeChannel(ink.g, shade, garment.g, options.bleed);
+        const b = shadeChannel(ink.b, shade, garment.b, options.bleed);
+
+        out[i] = clamp8(out[i]! + (r - out[i]!) * alpha);
+        out[i + 1] = clamp8(out[i + 1]! + (g - out[i + 1]!) * alpha);
+        out[i + 2] = clamp8(out[i + 2]! + (b - out[i + 2]!) * alpha);
+      }
+    }
+
+    measurements.push({ baseLuma: Math.round(baseLuma), garmentHex: hex(garment.r, garment.g, garment.b) });
   }
 
   const jpeg = await sharp(out, { raw: { width, height, channels: 3 } })
     .jpeg({ quality: 92, chromaSubsampling: '4:4:4' })
     .toBuffer();
 
-  return {
-    jpeg,
-    width,
-    height,
-    baseLuma: Math.round(baseLuma),
-    garmentHex: hex(garment.r, garment.g, garment.b),
-  };
+  return { jpeg, width, height, placements: measurements };
 }
 
 function shadeChannel(inkValue: number, shade: number, garmentValue: number, bleed: number): number {

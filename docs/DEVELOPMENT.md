@@ -138,3 +138,16 @@ Two traps, both of which produced convincing false failures:
   and clicking. Read the rect with `page.evaluate` instead.
 - Don't assume handles start at their defaults. A template with a saved area loads its own
   corners, so a grab at the default position lands on empty image and nothing moves.
+
+### Several print areas per mockup
+
+A template carries a list of areas, each with a label, four corners, and its own measured
+garment colour and baseline. A photo showing the front and back together takes two, each
+assigned a different design.
+
+Measuring per area rather than per template is not a nicety. On the front-and-back photo the
+two halves measure `#232024` baseline 33 and `#2f2b2e` baseline 38 — different enough that a
+single baseline would under- or over-shade one of them.
+
+The compositor reads the garment from an untouched copy of the resized photo while writing
+into the output, so overlapping areas cannot compound each other's shading.

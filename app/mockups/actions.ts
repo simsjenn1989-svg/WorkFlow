@@ -2,35 +2,46 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import sharp from 'sharp';
 import { BUCKET, db } from '@/lib/supabase';
 import { measureArea } from '@/lib/render/measure';
-import { toPixelQuad, type NormQuad } from '@/lib/mockups';
 import { describeAreaProblem } from '@/lib/render/homography';
+import { toPixelQuad, type NormQuad, type PrintArea } from '@/lib/mockups';
 import type { ActionResult } from '@/app/actions';
-import sharp from 'sharp';
 
 function fail(error: string): ActionResult {
   return { ok: false, error };
 }
 
 const point = z.object({ x: z.number().min(-0.5).max(1.5), y: z.number().min(-0.5).max(1.5) });
+
 const areaSchema = z.object({
+  id: z.string().min(1).max(64),
+  label: z.string().trim().min(1).max(40),
   corners: z.tuple([point, point, point, point]),
+});
+
+const saveSchema = z.object({
+  areas: z.array(areaSchema).min(1).max(6),
   options: z.record(z.string(), z.number()).default({}),
   name: z.string().trim().min(1).max(120).optional(),
   tags: z.array(z.string().trim().min(1).max(60)).max(40).optional(),
 });
 
 /**
- * Save the marked print area and measure what is underneath it.
+ * Save every marked print area and measure what sits under each one.
  *
- * Measuring here rather than at render time means the template carries its own garment
- * colour and baseline, and the editor can warn immediately if the area has been marked
- * somewhere with no drape in it.
+ * Measuring per area rather than per template is what lets a single photo hold a front and
+ * a back shot: the two halves are lit differently, so each keeps its own baseline.
  */
-export async function saveArea(id: string, payload: unknown): Promise<ActionResult> {
-  const parsed = areaSchema.safeParse(payload);
+export async function saveAreas(id: string, payload: unknown): Promise<ActionResult> {
+  const parsed = saveSchema.safeParse(payload);
   if (!parsed.success) return fail('Those print-area settings are not valid.');
+
+  const labels = parsed.data.areas.map((a) => a.label.toLowerCase());
+  if (new Set(labels).size !== labels.length) {
+    return fail('Two areas have the same name. Give each one a distinct label.');
+  }
 
   const { data: row } = await db()
     .from('mockup_templates')
@@ -46,23 +57,32 @@ export async function saveArea(id: string, payload: unknown): Promise<ActionResu
 
   const photo = Buffer.from(await file.arrayBuffer());
   const meta = await sharp(photo).rotate().metadata();
+  const width = meta.width ?? 0;
+  const height = meta.height ?? 0;
 
-  const quad = toPixelQuad(parsed.data.corners as NormQuad, meta.width ?? 0, meta.height ?? 0);
+  const areas: PrintArea[] = [];
+  for (const area of parsed.data.areas) {
+    const quad = toPixelQuad(area.corners as NormQuad, width, height);
 
-  const problem = describeAreaProblem(quad, meta.width ?? 0, meta.height ?? 0);
-  if (problem) return fail(problem);
+    const problem = describeAreaProblem(quad, width, height);
+    if (problem) return fail(`${area.label}: ${problem}`);
 
-  let measured;
-  try {
-    measured = await measureArea(photo, quad);
-  } catch (error) {
-    return fail((error as Error).message);
+    try {
+      const measured = await measureArea(photo, quad);
+      areas.push({
+        id: area.id,
+        label: area.label,
+        corners: area.corners as NormQuad,
+        garmentHex: measured.garmentHex,
+        baseLuma: measured.baseLuma,
+      });
+    } catch (error) {
+      return fail(`${area.label}: ${(error as Error).message}`);
+    }
   }
 
   const update: Record<string, unknown> = {
-    print_area: { corners: parsed.data.corners },
-    garment_color: measured.garmentHex,
-    base_luma: measured.baseLuma,
+    print_areas: areas,
     render_options: parsed.data.options,
   };
   if (parsed.data.name) update.name = parsed.data.name;

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { isConfigured } from '@/lib/supabase';
-import { cornersOf, getMockup } from '@/lib/mockups';
+import { getMockup } from '@/lib/mockups';
 import { boardData } from '@/lib/data';
 import { deleteMockup } from '../actions';
 import { SetupNotice } from '@/app/setup/SetupNotice';
@@ -43,7 +43,7 @@ export default async function MockupPage({ params }: { params: Promise<{ id: str
         />
       </div>
 
-      <AreaEditor template={template} corners={cornersOf(template)} designs={designs} />
+      <AreaEditor template={template} designs={designs} />
     </div>
   );
 }

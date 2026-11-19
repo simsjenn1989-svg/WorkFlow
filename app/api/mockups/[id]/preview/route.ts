@@ -2,22 +2,30 @@ import { NextResponse } from 'next/server';
 import sharp from 'sharp';
 import { z } from 'zod';
 import { BUCKET, db } from '@/lib/supabase';
-import { renderMockup } from '@/lib/render/compose';
-import { toPixelQuad, type NormQuad } from '@/lib/mockups';
+import { renderMockup, type Placement } from '@/lib/render/compose';
 import { describeAreaProblem } from '@/lib/render/homography';
+import { toPixelQuad, type NormQuad } from '@/lib/mockups';
 
 export const runtime = 'nodejs';
 
 const point = z.object({ x: z.number(), y: z.number() });
 const schema = z.object({
-  designId: z.string().uuid(),
-  corners: z.tuple([point, point, point, point]),
+  placements: z
+    .array(
+      z.object({
+        label: z.string().trim().min(1).max(40),
+        designId: z.string().uuid(),
+        corners: z.tuple([point, point, point, point]),
+      }),
+    )
+    .min(1)
+    .max(6),
   options: z.record(z.string(), z.number()).default({}),
   maxEdge: z.number().int().min(300).max(4000).default(1100),
 });
 
 /**
- * Render a design onto this mockup and return the JPEG.
+ * Render one or more designs onto this mockup and return the JPEG.
  *
  * The same renderer as the final export, just at a smaller `maxEdge`. Keeping one
  * implementation is why a preview cannot quietly disagree with what you download.
@@ -30,54 +38,70 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: 'Those preview settings are not valid.' }, { status: 400 });
   }
 
-  const [{ data: template }, { data: design }] = await Promise.all([
-    db().from('mockup_templates').select('source_path').eq('id', id).maybeSingle(),
-    db()
-      .from('designs')
-      .select('raw_image_path,print_ready_path')
-      .eq('id', parsed.data.designId)
-      .maybeSingle(),
-  ]);
-
+  const { data: template } = await db()
+    .from('mockup_templates')
+    .select('source_path')
+    .eq('id', id)
+    .maybeSingle();
   if (!template) return NextResponse.json({ error: 'No such mockup.' }, { status: 404 });
 
-  const artPath =
-    (design as { print_ready_path: string | null; raw_image_path: string | null } | null)
-      ?.print_ready_path ??
-    (design as { raw_image_path: string | null } | null)?.raw_image_path ??
-    null;
-  if (!artPath) {
+  const designIds = [...new Set(parsed.data.placements.map((p) => p.designId))];
+  const { data: designRows } = await db()
+    .from('designs')
+    .select('id,raw_image_path,print_ready_path')
+    .in('id', designIds);
+
+  const artPaths = new Map<string, string>();
+  for (const row of (designRows ?? []) as {
+    id: string;
+    raw_image_path: string | null;
+    print_ready_path: string | null;
+  }[]) {
+    const path = row.print_ready_path ?? row.raw_image_path;
+    if (path) artPaths.set(row.id, path);
+  }
+
+  const missing = parsed.data.placements.find((p) => !artPaths.has(p.designId));
+  if (missing) {
     return NextResponse.json(
-      { error: 'That design has no image yet — pick a variant first.' },
+      { error: `The design for "${missing.label}" has no image yet — pick a variant first.` },
       { status: 400 },
     );
   }
 
-  const [photoFile, artFile] = await Promise.all([
-    db().storage.from(BUCKET).download((template as { source_path: string }).source_path),
-    db().storage.from(BUCKET).download(artPath),
-  ]);
-
+  const photoFile = await db()
+    .storage.from(BUCKET)
+    .download((template as { source_path: string }).source_path);
   if (photoFile.error || !photoFile.data) {
     return NextResponse.json({ error: 'The mockup photo could not be read.' }, { status: 500 });
   }
-  if (artFile.error || !artFile.data) {
-    return NextResponse.json({ error: 'The design image could not be read.' }, { status: 500 });
+  const photo = Buffer.from(await photoFile.data.arrayBuffer());
+  const meta = await sharp(photo).rotate().metadata();
+  const width = meta.width ?? 0;
+  const height = meta.height ?? 0;
+
+  // Each distinct design is downloaded once even when used in several areas.
+  const art = new Map<string, Buffer>();
+  for (const [designId, path] of artPaths) {
+    const file = await db().storage.from(BUCKET).download(path);
+    if (file.error || !file.data) {
+      return NextResponse.json({ error: 'A design image could not be read.' }, { status: 500 });
+    }
+    art.set(designId, Buffer.from(await file.data.arrayBuffer()));
   }
 
-  const photo = Buffer.from(await photoFile.data.arrayBuffer());
-  const art = Buffer.from(await artFile.data.arrayBuffer());
-  const meta = await sharp(photo).rotate().metadata();
-
-  const quad = toPixelQuad(parsed.data.corners as NormQuad, meta.width ?? 0, meta.height ?? 0);
-  const problem = describeAreaProblem(quad, meta.width ?? 0, meta.height ?? 0);
-  if (problem) return NextResponse.json({ error: problem }, { status: 400 });
+  const placements: Placement[] = [];
+  for (const p of parsed.data.placements) {
+    const quad = toPixelQuad(p.corners as NormQuad, width, height);
+    const problem = describeAreaProblem(quad, width, height);
+    if (problem) return NextResponse.json({ error: `${p.label}: ${problem}` }, { status: 400 });
+    placements.push({ quad, design: art.get(p.designId)! });
+  }
 
   try {
     const result = await renderMockup({
       mockup: photo,
-      design: art,
-      quad,
+      placements,
       options: parsed.data.options,
       maxEdge: parsed.data.maxEdge,
     });
@@ -86,8 +110,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       headers: {
         'Content-Type': 'image/jpeg',
         'Cache-Control': 'no-store',
-        'X-Garment': result.garmentHex,
-        'X-Base-Luma': String(result.baseLuma),
+        'X-Measurements': JSON.stringify(
+          result.placements.map((m, i) => ({
+            label: parsed.data.placements[i]?.label ?? '',
+            garment: m.garmentHex,
+            baseLuma: m.baseLuma,
+          })),
+        ),
       },
     });
   } catch (error) {

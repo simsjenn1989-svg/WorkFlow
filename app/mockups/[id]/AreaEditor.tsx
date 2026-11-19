@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { saveArea } from '../actions';
+import { saveAreas } from '../actions';
 import { DEFAULT_OPTIONS, type RenderOptions } from '@/lib/render/options';
-import type { MockupTemplate, NormQuad } from '@/lib/mockups';
+import { defaultCornersFor, type MockupTemplate, type NormQuad, type PrintArea } from '@/lib/mockups';
 import type { DesignCard } from '@/lib/types';
 
 const CORNER_LABELS = ['top left', 'top right', 'bottom right', 'bottom left'] as const;
@@ -16,41 +16,47 @@ const SLIDERS: { key: keyof RenderOptions; label: string; min: number; max: numb
   { key: 'featherPx', label: 'Edge feather', min: 0, max: 5, step: 0.1, hint: 'Printed edges are not razor sharp' },
 ];
 
+const AREA_COLOURS = ['96,165,250', '244,114,182', '52,211,153', '251,191,36', '167,139,250', '248,113,113'];
+
+type EditableArea = PrintArea & { designId: string };
+
 export function AreaEditor({
   template,
-  corners: initialCorners,
   designs,
 }: {
   template: MockupTemplate;
-  corners: NormQuad;
   designs: DesignCard[];
 }) {
-  const [corners, setCorners] = useState<NormQuad>(initialCorners);
+  const [areas, setAreas] = useState<EditableArea[]>(() =>
+    (template.print_areas.length > 0
+      ? template.print_areas
+      : [{ id: crypto.randomUUID(), label: 'front', corners: defaultCornersFor(0) }]
+    ).map((a) => ({ ...a, designId: designs[0]?.id ?? '' })),
+  );
+  const [activeIndex, setActiveIndex] = useState(0);
   const [options, setOptions] = useState<RenderOptions>({
     ...DEFAULT_OPTIONS,
     ...template.render_options,
   });
   const [name, setName] = useState(template.name);
-  const [designId, setDesignId] = useState(designs[0]?.id ?? '');
   const [preview, setPreview] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(true);
   const [rendering, setRendering] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [dragging, setDragging] = useState<number | null>(null);
+  const [dragging, setDragging] = useState<{ area: number; corner: number } | null>(null);
 
   const frameRef = useRef<HTMLDivElement>(null);
   const previewUrlRef = useRef<string | null>(null);
 
-  // Revoke the previous object URL whenever a new render replaces it.
   useEffect(() => {
     return () => {
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     };
   }, []);
 
-  const pointFromEvent = useCallback((e: PointerEvent | React.PointerEvent) => {
+  const pointFromEvent = useCallback((e: PointerEvent) => {
     const rect = frameRef.current?.getBoundingClientRect();
     if (!rect) return null;
     return {
@@ -60,12 +66,21 @@ export function AreaEditor({
   }, []);
 
   useEffect(() => {
-    if (dragging === null) return;
+    if (!dragging) return;
 
     const move = (e: PointerEvent) => {
       const p = pointFromEvent(e);
       if (!p) return;
-      setCorners((prev) => prev.map((c, i) => (i === dragging ? p : c)) as NormQuad);
+      setAreas((prev) =>
+        prev.map((area, ai) =>
+          ai !== dragging.area
+            ? area
+            : {
+                ...area,
+                corners: area.corners.map((c, ci) => (ci === dragging.corner ? p : c)) as NormQuad,
+              },
+        ),
+      );
     };
     const up = () => setDragging(null);
 
@@ -77,9 +92,31 @@ export function AreaEditor({
     };
   }, [dragging, pointFromEvent]);
 
+  function addArea() {
+    setAreas((prev) => {
+      const index = prev.length;
+      const label = index === 1 ? 'back' : `area ${index + 1}`;
+      setActiveIndex(index);
+      return [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          label,
+          corners: defaultCornersFor(index),
+          designId: designs[0]?.id ?? '',
+        },
+      ];
+    });
+  }
+
+  function removeArea(index: number) {
+    setAreas((prev) => prev.filter((_, i) => i !== index));
+    setActiveIndex((i) => Math.max(0, i >= index ? i - 1 : i));
+  }
+
   async function render() {
-    if (!designId) {
-      setError('Add a design with artwork first — there is nothing to place.');
+    if (areas.some((a) => !a.designId)) {
+      setError('Every area needs a design. Add artwork first, or remove the spare area.');
       return;
     }
     setRendering(true);
@@ -88,7 +125,11 @@ export function AreaEditor({
       const response = await fetch(`/api/mockups/${template.id}/preview`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ designId, corners, options, maxEdge: 1100 }),
+        body: JSON.stringify({
+          placements: areas.map((a) => ({ label: a.label, designId: a.designId, corners: a.corners })),
+          options,
+          maxEdge: 1100,
+        }),
       });
       if (!response.ok) {
         const body = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -100,9 +141,13 @@ export function AreaEditor({
       previewUrlRef.current = URL.createObjectURL(blob);
       setPreview(previewUrlRef.current);
       setShowPreview(true);
-      setMessage(
-        `Garment ${response.headers.get('X-Garment') ?? '?'} · baseline ${response.headers.get('X-Base-Luma') ?? '?'}`,
-      );
+
+      const measured = JSON.parse(response.headers.get('X-Measurements') ?? '[]') as {
+        label: string;
+        garment: string;
+        baseLuma: number;
+      }[];
+      setMessage(measured.map((m) => `${m.label} ${m.garment} · baseline ${m.baseLuma}`).join('   '));
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -113,16 +158,20 @@ export function AreaEditor({
   async function save() {
     setSaving(true);
     setError(null);
-    const result = await saveArea(template.id, { corners, options, name });
+    const result = await saveAreas(template.id, {
+      areas: areas.map((a) => ({ id: a.id, label: a.label, corners: a.corners })),
+      options,
+      name,
+    });
     if (!result.ok) setError(result.error);
     else setMessage('Saved.');
     setSaving(false);
   }
 
-  const polygon = corners.map((c) => `${c.x * 100},${c.y * 100}`).join(' ');
+  const showingRender = showPreview && preview;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="space-y-3">
         <div
           ref={frameRef}
@@ -131,43 +180,53 @@ export function AreaEditor({
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={(showPreview && preview) || template.url || ''}
+            src={showingRender ? preview! : template.url || ''}
             alt={template.name}
             className="block w-full"
             draggable={false}
           />
 
-          {/* The marked quad. Hidden while showing a render so it does not obscure the result. */}
-          {!(showPreview && preview) ? (
+          {!showingRender ? (
             <svg
               viewBox="0 0 100 100"
               preserveAspectRatio="none"
               className="pointer-events-none absolute inset-0 h-full w-full"
             >
-              <polygon
-                points={polygon}
-                fill="rgba(59,130,246,0.12)"
-                stroke="rgb(96,165,250)"
-                strokeWidth="0.3"
-                vectorEffect="non-scaling-stroke"
-              />
+              {areas.map((area, ai) => (
+                <polygon
+                  key={area.id}
+                  points={area.corners.map((c) => `${c.x * 100},${c.y * 100}`).join(' ')}
+                  fill={`rgba(${AREA_COLOURS[ai % AREA_COLOURS.length]},${ai === activeIndex ? 0.16 : 0.07})`}
+                  stroke={`rgb(${AREA_COLOURS[ai % AREA_COLOURS.length]})`}
+                  strokeWidth={ai === activeIndex ? 0.4 : 0.2}
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
             </svg>
           ) : null}
 
-          {!(showPreview && preview)
-            ? corners.map((c, i) => (
-                <button
-                  key={i}
-                  aria-label={`Print area ${CORNER_LABELS[i]} corner`}
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    setDragging(i);
-                  }}
-                  className={`absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full border-2 border-white shadow
-                             ${dragging === i ? 'scale-125 bg-blue-400' : 'bg-blue-500'}`}
-                  style={{ left: `${c.x * 100}%`, top: `${c.y * 100}%` }}
-                />
-              ))
+          {!showingRender
+            ? areas.flatMap((area, ai) =>
+                area.corners.map((c, ci) => (
+                  <button
+                    key={`${area.id}-${ci}`}
+                    aria-label={`${area.label} ${CORNER_LABELS[ci]} corner`}
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      setActiveIndex(ai);
+                      setDragging({ area: ai, corner: ci });
+                    }}
+                    className={`absolute -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full border-2 border-white shadow transition-transform
+                                ${ai === activeIndex ? 'h-5 w-5' : 'h-3.5 w-3.5 opacity-70'}
+                                ${dragging?.area === ai && dragging?.corner === ci ? 'scale-125' : ''}`}
+                    style={{
+                      left: `${c.x * 100}%`,
+                      top: `${c.y * 100}%`,
+                      background: `rgb(${AREA_COLOURS[ai % AREA_COLOURS.length]})`,
+                    }}
+                  />
+                )),
+              )
             : null}
         </div>
 
@@ -177,30 +236,22 @@ export function AreaEditor({
           </button>
           {preview ? (
             <button className="btn" onClick={() => setShowPreview((v) => !v)}>
-              {showPreview ? 'Show corners' : 'Show render'}
+              {showPreview ? 'Show areas' : 'Show render'}
             </button>
           ) : null}
-          <select
-            className="field w-auto py-1.5 text-xs"
-            value={designId}
-            onChange={(e) => setDesignId(e.target.value)}
-          >
-            {designs.length === 0 ? <option value="">No designs with artwork</option> : null}
-            {designs.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.title}
-              </option>
-            ))}
-          </select>
+          <button className="btn" onClick={addArea} disabled={areas.length >= 6}>
+            + Add area
+          </button>
         </div>
 
         {error ? <p className="text-xs text-rose-400">{error}</p> : null}
         {message && !error ? <p className="text-xs text-zinc-500">{message}</p> : null}
 
         <p className="text-[11px] leading-relaxed text-zinc-600">
-          Drag the four corners onto the area the print should cover, following the shirt
-          rather than the screen — a corner pushed into a fold is what makes the result sit in
-          the fabric instead of floating on it.
+          Drag the corners onto the area the print should cover, following the shirt rather
+          than the screen — a corner pushed into a fold is what makes the result sit in the
+          fabric instead of floating on it. A photo showing front and back together takes two
+          areas, each with its own design.
         </p>
       </div>
 
@@ -210,28 +261,86 @@ export function AreaEditor({
             Name
             <input className="field" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
           </label>
-          {template.garment_color ? (
-            <dl className="space-y-1 text-xs">
-              <div className="flex items-center justify-between">
-                <dt className="text-zinc-500">Measured garment</dt>
-                <dd className="flex items-center gap-1.5 text-zinc-300">
+        </section>
+
+        <section className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
+          <h2 className="text-sm font-semibold">
+            Print areas <span className="font-normal text-zinc-500">{areas.length}</span>
+          </h2>
+
+          {areas.map((area, ai) => (
+            <div
+              key={area.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => setActiveIndex(ai)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') setActiveIndex(ai);
+              }}
+              className={`space-y-2 rounded-md border p-2.5 transition ${
+                ai === activeIndex ? 'border-zinc-600 bg-zinc-800/50' : 'border-zinc-800'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                  style={{ background: `rgb(${AREA_COLOURS[ai % AREA_COLOURS.length]})` }}
+                />
+                <input
+                  aria-label={`Area ${ai + 1} label`}
+                  className="field py-1 text-xs"
+                  value={area.label}
+                  maxLength={40}
+                  onChange={(e) =>
+                    setAreas((prev) =>
+                      prev.map((a, i) => (i === ai ? { ...a, label: e.target.value } : a)),
+                    )
+                  }
+                />
+                {areas.length > 1 ? (
+                  <button
+                    className="shrink-0 text-xs text-zinc-500 hover:text-rose-400"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeArea(ai);
+                    }}
+                  >
+                    remove
+                  </button>
+                ) : null}
+              </div>
+
+              <select
+                aria-label={`Design for ${area.label}`}
+                className="field py-1 text-xs"
+                value={area.designId}
+                onChange={(e) =>
+                  setAreas((prev) =>
+                    prev.map((a, i) => (i === ai ? { ...a, designId: e.target.value } : a)),
+                  )
+                }
+              >
+                {designs.length === 0 ? <option value="">No designs with artwork</option> : null}
+                {designs.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.title}
+                  </option>
+                ))}
+              </select>
+
+              {area.garmentHex ? (
+                <p className="flex items-center gap-1.5 text-[11px] text-zinc-500">
                   <span
-                    className="inline-block h-3 w-3 rounded-sm border border-zinc-700"
-                    style={{ background: template.garment_color }}
+                    className="inline-block h-2.5 w-2.5 rounded-sm border border-zinc-700"
+                    style={{ background: area.garmentHex }}
                   />
-                  {template.garment_color}
-                </dd>
-              </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-zinc-500">Baseline luminance</dt>
-                <dd className="text-zinc-300">{template.base_luma ?? '—'}</dd>
-              </div>
-            </dl>
-          ) : (
-            <p className="text-[11px] text-zinc-600">
-              Save the area to measure this garment&rsquo;s colour and baseline.
-            </p>
-          )}
+                  {area.garmentHex} · baseline {area.baseLuma ?? '—'}
+                </p>
+              ) : (
+                <p className="text-[11px] text-zinc-600">Save to measure this area.</p>
+              )}
+            </div>
+          ))}
         </section>
 
         <section className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
@@ -249,9 +358,7 @@ export function AreaEditor({
                 max={s.max}
                 step={s.step}
                 value={options[s.key]}
-                onChange={(e) =>
-                  setOptions((o) => ({ ...o, [s.key]: Number(e.target.value) }))
-                }
+                onChange={(e) => setOptions((o) => ({ ...o, [s.key]: Number(e.target.value) }))}
               />
             </label>
           ))}
@@ -261,7 +368,7 @@ export function AreaEditor({
         </section>
 
         <button className="btn-primary w-full" onClick={save} disabled={saving}>
-          {saving ? 'Saving…' : 'Save print area'}
+          {saving ? 'Saving…' : `Save ${areas.length} print area${areas.length === 1 ? '' : 's'}`}
         </button>
       </aside>
     </div>

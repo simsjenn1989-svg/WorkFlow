@@ -55,11 +55,10 @@ for (const file of mockups) {
   const quad = quadFor(name, meta.width ?? 0, meta.height ?? 0);
 
   // Rendered twice: once as shipped, once flat, so the shading can be judged by comparison.
-  const real = await renderMockup({ mockup, design, quad, maxEdge: 1400 });
+  const real = await renderMockup({ mockup, placements: [{ quad, design }], maxEdge: 1400 });
   const flat = await renderMockup({
     mockup,
-    design,
-    quad,
+    placements: [{ quad, design }],
     maxEdge: 1400,
     options: { shadingStrength: 0, textureStrength: 0, bleed: 0, inkOpacity: 1, featherPx: 0 },
   });
@@ -67,7 +66,6 @@ for (const file of mockups) {
   await writeFile(path.join(outDir, `${name}-shaded.jpg`), real.jpeg);
   await writeFile(path.join(outDir, `${name}-flat.jpg`), flat.jpeg);
 
-  console.log(
-    `${name}: ${real.width}x${real.height}  garment ${real.garmentHex}  baseLuma ${real.baseLuma}`,
-  );
+  const m = real.placements[0]!;
+  console.log(`${name}: ${real.width}x${real.height}  garment ${m.garmentHex}  baseLuma ${m.baseLuma}`);
 }

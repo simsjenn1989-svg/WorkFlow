@@ -40,9 +40,12 @@ technique is standard compositing, applied once per mockup template and reused f
 ### Prepared once, per mockup
 
 1. **Upload** the blank-product photo (JPG or PNG).
-2. **Mark the print area.** Drag four corners for a flat area; switch to a warp mesh
-   (default 4×4, subdividable) for curved or wrinkled fabric. Stored as normalized
-   coordinates so it survives any later resizing of the source photo.
+2. **Mark the print areas.** Drag four corners per area, stored as normalized coordinates
+   so they survive any later resizing of the source photo. A photo can carry several:
+   one showing the front and the back of the garment side by side takes two, each
+   holding its own artwork, which is how a front-and-back product gets a single listing
+   image. Each area is measured separately, because the halves of such a photo are lit
+   differently and one baseline would be wrong for both.
 3. **Extract a shading map.** The app converts the marked region to luminance, high-pass
    filters it to separate slow lighting gradients from fast fabric detail, and stores two
    grayscale maps: `shadow_map` and `highlight_map`. This is what carries the folds.

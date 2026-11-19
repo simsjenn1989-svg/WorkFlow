@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { isConfigured } from '@/lib/supabase';
-import { hasArea, listMockups } from '@/lib/mockups';
+import { isMarked, listMockups } from '@/lib/mockups';
 import { SetupNotice } from '@/app/setup/SetupNotice';
 import { MockupUpload } from './MockupUpload';
 
@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export default async function MockupsPage() {
   if (!isConfigured) return <SetupNotice />;
   const templates = await listMockups();
-  const unmarked = templates.filter((t) => !hasArea(t)).length;
+  const unmarked = templates.filter((t) => !isMarked(t)).length;
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5 px-5 py-6">
@@ -58,7 +58,7 @@ export default async function MockupsPage() {
                     loading="lazy"
                   />
                 ) : null}
-                {!hasArea(template) ? (
+                {!isMarked(template) ? (
                   <span className="absolute left-1.5 top-1.5 rounded bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-medium text-amber-950">
                     Not marked
                   </span>
@@ -66,17 +66,24 @@ export default async function MockupsPage() {
               </div>
               <div className="space-y-1 p-2.5">
                 <p className="truncate text-sm font-medium text-zinc-100">{template.name}</p>
-                <div className="flex items-center justify-between text-[11px] text-zinc-500">
-                  <span>{hasArea(template) ? 'Ready' : 'Needs marking'}</span>
-                  {template.garment_color ? (
-                    <span className="flex items-center gap-1">
-                      <span
-                        className="inline-block h-2.5 w-2.5 rounded-sm border border-zinc-700"
-                        style={{ background: template.garment_color }}
-                      />
-                      {template.garment_color}
-                    </span>
-                  ) : null}
+                <div className="flex items-center justify-between gap-2 text-[11px] text-zinc-500">
+                  <span>
+                    {isMarked(template)
+                      ? `${template.print_areas.length} area${template.print_areas.length === 1 ? '' : 's'}`
+                      : 'Needs marking'}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    {template.print_areas
+                      .filter((a) => a.garmentHex)
+                      .map((a) => (
+                        <span
+                          key={a.id}
+                          title={`${a.label} ${a.garmentHex}`}
+                          className="inline-block h-2.5 w-2.5 rounded-sm border border-zinc-700"
+                          style={{ background: a.garmentHex ?? undefined }}
+                        />
+                      ))}
+                  </span>
                 </div>
               </div>
             </Link>

@@ -215,10 +215,18 @@ export function PinStudio({
 
   const [W, H] = SIZES[style.size];
 
+  /*
+   * Controls are split either side of the canvas rather than stacked down one edge. With
+   * eight sections in one column, opening a few pushes the rest below the fold and takes
+   * the canvas with them.
+   *
+   * xl: content | canvas | appearance. lg: canvas across the top, controls in two columns
+   * beneath it. Narrower than that: one column, canvas first.
+   */
   return (
-    <div className="grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
-      {/* Preview */}
-      <div className="space-y-3 lg:order-2">
+    <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[19rem_minmax(0,1fr)_19rem]">
+      {/* Preview — stays put while either column of controls is scrolled. */}
+      <div className="space-y-3 lg:col-span-2 lg:row-start-1 xl:col-span-1 xl:col-start-2 xl:row-start-1 xl:sticky xl:top-4 xl:self-start">
         <div className="flex justify-center rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
           <canvas
             ref={canvasRef}
@@ -246,8 +254,8 @@ export function PinStudio({
         {message && !error ? <p className="text-xs text-zinc-500">{message}</p> : null}
       </div>
 
-      {/* Controls */}
-      <div className="space-y-3 lg:order-1">
+      {/* Content: what the pin says */}
+      <div className="space-y-3 lg:col-start-1 lg:row-start-2 xl:col-start-1 xl:row-start-1">
         <Section title="Source" open>
           <label className="block space-y-1 text-xs text-zinc-400">
             Render
@@ -361,6 +369,10 @@ export function PinStudio({
           </label>
         </Section>
 
+      </div>
+
+      {/* Appearance: how the pin looks */}
+      <div className="space-y-3 lg:col-start-2 lg:row-start-2 xl:col-start-3 xl:row-start-1">
         <Section title="Layout" open>
           <div className="grid grid-cols-2 gap-2">
             <label className="space-y-1 text-xs text-zinc-400">

@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pin Maker</title>
+<style>
+  :root{
+    --bg:#f6f3f1; --panel:#ffffff; --ink:#2b2730; --muted:#8a8290; --line:#e8e2e6;
+    --accent:#c86b8f; --accent-soft:#f6e4ec; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+  .app{display:grid;grid-template-columns:380px 1fr;height:100vh}
+  aside{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding:18px 18px 40px}
+  h1{font-size:18px;margin:0 0 2px;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:12px;margin-bottom:14px}
+  details{border:1px solid var(--line);border-radius:var(--radius);margin-bottom:10px;background:#fff}
+  summary{cursor:pointer;padding:11px 14px;font-weight:600;list-style:none;display:flex;justify-content:space-between;align-items:center}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:"＋";color:var(--muted);font-weight:400}
+  details[open] summary::after{content:"－"}
+  .body{padding:2px 14px 14px}
+  label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+  input[type=text],input[type=password],textarea,select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;color:var(--ink);background:#fff}
+  textarea{resize:vertical;min-height:58px}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  input[type=color]{width:100%;height:34px;border:1px solid var(--line);border-radius:8px;padding:2px;background:#fff;cursor:pointer}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .check{display:flex;align-items:center;gap:8px;margin-top:10px;color:var(--ink);font-size:13px}
+  .check input{accent-color:var(--accent)}
+  button{font:inherit;border:1px solid var(--line);background:#fff;color:var(--ink);padding:8px 12px;border-radius:8px;cursor:pointer}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  button.primary:hover{filter:brightness(.95)}
+  .btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .drop{border:2px dashed var(--line);border-radius:var(--radius);padding:18px;text-align:center;color:var(--muted);cursor:pointer;transition:.15s}
+  .drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
+  .thumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .thumb{position:relative;width:52px;height:78px;border-radius:6px;overflow:hidden;border:2px solid transparent;cursor:pointer;background:#eee}
+  .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .thumb.active{border-color:var(--accent)}
+  .thumb .x{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:11px;line-height:18px;text-align:center;display:none}
+  .thumb:hover .x{display:block}
+  .themes{display:flex;flex-wrap:wrap;gap:6px}
+  .theme{display:flex;align-items:center;gap:6px;padding:6px 10px;font-size:12px}
+  .sw{width:14px;height:14px;border-radius:50%;border:1px solid rgba(0,0,0,.1)}
+  .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{flex:1;border:none;border-radius:0;padding:7px 4px;font-size:12px}
+  .seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  main{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;overflow:hidden;position:relative}
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;width:100%;min-height:0}
+  canvas{max-height:100%;max-width:100%;box-shadow:0 10px 40px rgba(60,30,50,.15);border-radius:6px;background:#fff;cursor:grab;touch-action:none}
+  canvas.dragging{cursor:grabbing}
+  .hint{color:var(--muted);font-size:12px;margin-top:12px;text-align:center}
+  .val{float:right;color:var(--ink)}
+  .small{font-size:11px;color:var(--muted);margin-top:6px}
+  .ai{background:var(--accent-soft);border-radius:10px;padding:2px 12px 12px;margin:8px 0 4px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+  .chip{font-size:12px;padding:6px 9px;border-radius:14px;text-align:left;line-height:1.3}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .grp{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:10px 0 2px}
+  .copyrow{display:flex;gap:6px;align-items:flex-start}
+  .copyrow textarea,.copyrow input{flex:1}
+  .copyrow button{padding:6px 8px;font-size:12px}
+  .status{font-size:12px;margin-top:8px;color:var(--ink)}
+  .status.err{color:#b3261e}
+  code{background:#f1ecef;padding:1px 4px;border-radius:4px;font-size:11px}
+  @media (max-width:800px){.app{grid-template-columns:1fr;height:auto}main{height:80vh}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside>
+  <h1>📌 Pin Maker</h1>
+  <div class="sub">Drop in an image, add text, download your Pin. Works fully offline.</div>
+
+  <details open>
+    <summary>1 · Images</summary>
+    <div class="body">
+      <div class="drop" id="drop">Drop images here, click to browse,<br>or paste (Ctrl/Cmd+V)</div>
+      <input type="file" id="file" accept="image/*" multiple hidden>
+      <div class="thumbs" id="thumbs"></div>
+      <label>Zoom <span class="val" id="zoomVal">100%</span></label>
+      <input type="range" id="zoom" min="50" max="300" value="100">
+      <div class="btns">
+        <button id="resetPos">Reset position</button>
+        <button id="dupItem" title="Same image, new text variant">Duplicate Pin</button>
+      </div>
+      <div class="small">Tip: drag the image in the preview to reposition it.</div>
+    </div>
+  </details>
+
+  <details open>
+    <summary>2 · Text</summary>
+    <div class="body">
+      <div class="ai">
+        <label>Pin links to</label>
+        <select id="aiDest">
+          <option value="etsy-listing">An Etsy listing (buy this item)</option>
+          <option value="etsy-shop">My Etsy shop / a shop section</option>
+          <option value="store">A product page on my own store</option>
+          <option value="amazon">An Amazon product (affiliate link)</option>
+          <option value="blog">A blog post or article</option>
+        </select>
+        <div id="disclosureWrap">
+          <label>Affiliate disclosure (added to the start of every description)</label>
+          <input type="text" id="aiDisclosure">
+        </div>
+        <label>What is it? (optional, helps accuracy)</label>
+        <input type="text" id="aiContext" placeholder="e.g. printable fall planner, instant download">
+        <div class="row">
+          <div><label>Tone</label>
+            <select id="aiTone">
+              <option value="friendly and warm">Friendly</option>
+              <option value="elegant and refined">Elegant</option>
+              <option value="bold and punchy">Bold</option>
+              <option value="cozy and nostalgic">Cozy</option>
+              <option value="playful and cute">Playful</option>
+            </select></div>
+          <div><label>&nbsp;</label><button class="primary" id="aiGen" style="width:100%">✨ Generate text</button></div>
+        </div>
+        <div class="status" id="aiStatus"></div>
+        <div id="aiOut"></div>
+      </div>
+      <label>Headline <span class="small">(Enter = line break)</span></label>
+      <textarea id="title" placeholder="10 Cozy Fall Printables You'll Love"></textarea>
+      <div class="btns" style="margin-top:6px"><button id="starHeadline" style="font-size:12px;padding:5px 9px">☆ I like this headline (teach the AI)</button></div>
+      <label>Subtitle</label>
+      <textarea id="subtitle" placeholder="Instant download · Print at home"></textarea>
+      <div class="small">Headline &amp; subtitle are saved per Pin. Button &amp; footer apply to all Pins.</div>
+      <label>Button text (optional)</label>
+      <input type="text" data-key="cta" placeholder="Shop now">
+      <label>Footer / website (optional)</label>
+      <input type="text" data-key="footer" placeholder="yourshop.etsy.com">
+    </div>
+  </details>
+
+  <details open>
+    <summary>3 · Layout</summary>
+    <div class="body">
+      <label>Pin size</label>
+      <select data-key="size">
+        <option value="1000x1500">Standard 2:3 (1000×1500) — recommended</option>
+        <option value="1000x2100">Tall 1:2.1 (1000×2100)</option>
+        <option value="1000x1000">Square (1000×1000)</option>
+      </select>
+      <label>Style</label>
+      <select data-key="layout">
+        <option value="band">Text band across image</option>
+        <option value="box">Floating text box</option>
+        <option value="overlay">Text on image (dark fade)</option>
+        <option value="split">Split: image + color block</option>
+        <option value="framed">Framed photo + text below</option>
+      </select>
+      <label>Text position</label>
+      <div class="seg" id="posSeg">
+        <button data-pos="top">Top</button><button data-pos="center">Middle</button><button data-pos="bottom">Bottom</button>
+      </div>
+      <label>Image area (split/framed) <span class="val" id="splitVal"></span></label>
+      <input type="range" data-key="split" min="40" max="80">
+      <label>Alignment</label>
+      <div class="seg" id="alignSeg">
+        <button data-align="left">Left</button><button data-align="center">Center</button><button data-align="right">Right</button>
+      </div>
+      <label class="check"><input type="checkbox" data-key="border"> Thin inset border</label>
+    </div>
+  </details>
+
+  <details>
+    <summary>4 · Fonts &amp; sizes</summary>
+    <div class="body">
+      <label>Headline font</label>
+      <select data-key="titleFont" class="fontSel"></select>
+      <div class="row">
+        <div><label>Weight</label>
+          <select data-key="titleWeight"><option>400</option><option>600</option><option>700</option><option>800</option></select></div>
+        <div><label>Letter spacing <span class="val" id="trackVal"></span></label>
+          <input type="range" data-key="tracking" min="-2" max="20"></div>
+      </div>
+      <label>Headline size <span class="val" id="titleSizeVal"></span></label>
+      <input type="range" data-key="titleSize" min="40" max="180">
+      <label class="check"><input type="checkbox" data-key="upper"> UPPERCASE headline</label>
+      <label>Subtitle / button font</label>
+      <select data-key="bodyFont" class="fontSel"></select>
+      <label>Subtitle size <span class="val" id="subSizeVal"></span></label>
+      <input type="range" data-key="subSize" min="20" max="80">
+      <label>Line height <span class="val" id="lhVal"></span></label>
+      <input type="range" data-key="lineHeight" min="90" max="150">
+      <label>Load your own font (.ttf / .otf / .woff)</label>
+      <input type="file" id="fontFile" accept=".ttf,.otf,.woff,.woff2">
+      <div class="small">Headline and subtitle shrink automatically to fit the space.</div>
+    </div>
+  </details>
+
+  <details>
+    <summary>5 · Colors</summary>
+    <div class="body">
+      <label>Quick themes</label>
+      <div class="themes" id="themes"></div>
+      <div class="row">
+        <div><label>Headline</label><input type="color" data-key="titleColor"></div>
+        <div><label>Subtitle</label><input type="color" data-key="subColor"></div>
+      </div>
+      <div class="row">
+        <div><label>Band / box / block</label><input type="color" data-key="boxColor"></div>
+        <div><label>Background</label><input type="color" data-key="bgColor"></div>
+      </div>
+      <label>Band / box opacity <span class="val" id="opVal"></span></label>
+      <input type="range" data-key="boxOpacity" min="0" max="100">
+      <label>Dark fade strength (overlay style) <span class="val" id="fadeVal"></span></label>
+      <input type="range" data-key="fade" min="0" max="90">
+      <div class="row">
+        <div><label>Button</label><input type="color" data-key="ctaBg"></div>
+        <div><label>Button text</label><input type="color" data-key="ctaColor"></div>
+      </div>
+      <label>Footer text</label><input type="color" data-key="footerColor">
+      <label class="check"><input type="checkbox" data-key="shadow"> Text shadow</label>
+    </div>
+  </details>
+
+  <details id="aiSettings">
+    <summary>✨ AI text settings</summary>
+    <div class="body">
+      <label>Engine</label>
+      <select id="aiProvider">
+        <option value="ollama">Ollama: runs on your computer (offline, free)</option>
+        <option value="claude">Claude API: online, best quality</option>
+      </select>
+      <div id="ollamaCfg">
+        <label>Ollama address</label><input type="text" id="ollamaUrl">
+        <label>Vision model</label><input type="text" id="ollamaModel" list="ollamaModels">
+        <datalist id="ollamaModels">
+          <option value="gemma3">Gemma 3 4B: fast, basic copy (~3 GB)</option>
+          <option value="qwen2.5vl:7b">Qwen 2.5 VL 7B: better instruction-following (~6 GB)</option>
+          <option value="gemma3:12b">Gemma 3 12B: noticeably better copy (~8 GB, 16 GB RAM)</option>
+          <option value="mistral-small3.1">Mistral Small 3.1 24B: strong writer (~15 GB, 32 GB RAM)</option>
+          <option value="gemma3:27b">Gemma 3 27B: best local option (~17 GB, 32 GB RAM)</option>
+        </datalist>
+        <div class="small">Click the box to see suggestions. Bigger = better copy but slower. Download a model first with <code>ollama pull MODELNAME</code>.</div>
+        <div class="small">One-time setup: install Ollama from ollama.com, run <code>ollama pull gemma3</code>, and allow this page to connect (set <code>OLLAMA_ORIGINS</code> to <code>*</code>, then restart Ollama). Use "Test connection" to check.</div>
+      </div>
+      <div id="claudeCfg">
+        <label>Anthropic API key</label><input type="password" id="claudeKey" placeholder="sk-ant-...">
+        <label>Model</label>
+        <select id="claudeModel">
+          <option value="claude-sonnet-5-5">Claude Sonnet 5.5: great copy, recommended</option>
+          <option value="claude-opus-5-5">Claude Opus 5.5: best writing, costs more</option>
+          <option value="claude-haiku-5-5">Claude Haiku 5.5: fastest, cheapest</option>
+        </select>
+        <div class="small">Your key is stored only in this browser on this computer. Needs an internet connection.</div>
+      </div>
+      <div class="grp" style="margin-top:16px">Tune the copy</div>
+      <label>Your instructions</label>
+      <textarea id="aiInstructions" rows="4" placeholder="e.g. My buyers are moms planning the holidays. Emphasize instant download and printing at home. Keep it warm, never salesy. Avoid the word 'perfect'."></textarea>
+      <label>Headlines I like (one per line) <span class="val" id="likedCount"></span></label>
+      <textarea id="aiExamples" rows="5" placeholder="The Gift Wrap Everyone Asks About&#10;Wrap Like You Paid Someone To&#10;Your Tree Deserves Better Gifts"></textarea>
+      <div class="small">The AI copies the style of these. Use ★ under the headline box to add ones you pick.</div>
+      <div class="btns">
+        <button id="aiTest">Test connection</button>
+        <button id="aiGenAll">Generate for all Pins</button>
+      </div>
+      <div class="status" id="aiSetStatus"></div>
+    </div>
+  </details>
+
+  <details open>
+    <summary>6 · Export</summary>
+    <div class="body">
+      <div class="row">
+        <div><label>Format</label>
+          <select data-key="format"><option value="png">PNG (sharpest)</option><option value="jpeg">JPG (smaller file)</option></select></div>
+        <div><label>&nbsp;</label><button id="resetStyle" style="width:100%">Reset style</button></div>
+      </div>
+      <div class="btns">
+        <button class="primary" id="dl">Download this Pin</button>
+        <button id="dlAll">Download all</button>
+        <button id="dlCsv" title="File names + Pinterest titles &amp; descriptions">Titles &amp; descriptions (.csv)</button>
+      </div>
+      <div class="small">Your style settings are remembered on this computer.</div>
+    </div>
+  </details>
+</aside>
+
+<main>
+  <div class="stage"><canvas id="cv" width="1000" height="1500"></canvas></div>
+  <div class="hint" id="hint">Drag to reposition the image · Scroll on the preview to zoom</div>
+</main>
+</div>
+
+<script>
+(() => {
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const $ = id => document.getElementById(id);
+
+const SIZES = { '1000x1500':[1000,1500], '1000x2100':[1000,2100], '1000x1000':[1000,1000] };
+
+const FONTS = [
+  ['Georgia (classic serif)', "Georgia, 'Times New Roman', serif"],
+  ['Elegant serif', "'Playfair Display', Didot, 'Bodoni MT', 'Bodoni 72', Georgia, serif"],
+  ['Palatino', "'Palatino Linotype', Palatino, 'Book Antiqua', serif"],
+  ['Clean sans', "'Helvetica Neue', Helvetica, Arial, sans-serif"],
+  ['Modern sans', "'Avenir Next', Avenir, 'Segoe UI', 'Trebuchet MS', sans-serif"],
+  ['Geometric', "Futura, 'Century Gothic', 'Trebuchet MS', sans-serif"],
+  ['Bold condensed', "Impact, 'Arial Black', Haettenschweiler, sans-serif"],
+  ['Script', "'Brush Script MT', 'Segoe Script', 'Snell Roundhand', 'Apple Chancery', cursive"],
+  ['Typewriter', "'Courier New', Courier, monospace"],
+];
+
+const DEFAULTS = {
+  size:'1000x1500', layout:'band', position:'bottom', align:'center', split:62, border:false,
+  cta:'', footer:'',
+  titleFont:FONTS[1][1], titleWeight:'700', tracking:0, titleSize:110, upper:false,
+  bodyFont:FONTS[4][1], subSize:40, lineHeight:112,
+  titleColor:'#2b2730', subColor:'#6b6070', boxColor:'#ffffff', bgColor:'#f4ece8',
+  boxOpacity:92, fade:60, ctaBg:'#c86b8f', ctaColor:'#ffffff', footerColor:'#6b6070',
+  shadow:false, format:'png'
+};
+
+const THEMES = [
+  {name:'Clean white', c:{titleColor:'#222222', subColor:'#666666', boxColor:'#ffffff', bgColor:'#f2f2f2', ctaBg:'#222222', ctaColor:'#ffffff', footerColor:'#777777'}},
+  {name:'Blush', c:{titleColor:'#5a2e44', subColor:'#8c5a70', boxColor:'#f9e3ea', bgColor:'#fbeff3', ctaBg:'#c86b8f', ctaColor:'#ffffff', footerColor:'#8c5a70'}},
+  {name:'Sage', c:{titleColor:'#2f3e30', subColor:'#56685a', boxColor:'#e4ebdf', bgColor:'#eef2ea', ctaBg:'#6d8b6f', ctaColor:'#ffffff', footerColor:'#56685a'}},
+  {name:'Cream & gold', c:{titleColor:'#4a3b28', subColor:'#8a7350', boxColor:'#fbf5e9', bgColor:'#f6eedc', ctaBg:'#b8954e', ctaColor:'#ffffff', footerColor:'#8a7350'}},
+  {name:'Lavender', c:{titleColor:'#3d3157', subColor:'#6d5f8a', boxColor:'#ece6f7', bgColor:'#f3effa', ctaBg:'#8b74c2', ctaColor:'#ffffff', footerColor:'#6d5f8a'}},
+  {name:'Moody dark', c:{titleColor:'#ffffff', subColor:'#e6dfe4', boxColor:'#1f1b22', bgColor:'#1f1b22', ctaBg:'#ffffff', ctaColor:'#1f1b22', footerColor:'#d9d0d6'}},
+];
+
+let S = Object.assign({}, DEFAULTS);
+try { const saved = JSON.parse(localStorage.getItem('pinmaker-style') || 'null'); if (saved) S = Object.assign(S, saved); } catch(e){}
+const save = () => { try { localStorage.setItem('pinmaker-style', JSON.stringify(S)); } catch(e){} };
+
+// ---------- items ----------
+let items = [];
+let idx = -1;
+const draft = { img:null, name:'pin', title:'', subtitle:'', zoom:1, ox:0, oy:0 };
+const cur = () => items[idx] || draft;
+
+// ---------- helpers ----------
+function hexToRgba(hex, a){
+  const h = hex.replace('#','');
+  const n = parseInt(h.length===3 ? h.split('').map(c=>c+c).join('') : h, 16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+}
+function rr(x,y,w,h,r){
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+const fontStr = (w,size,fam) => `${w} ${Math.max(1,Math.round(size))}px ${fam}`;
+const hasLS = 'letterSpacing' in ctx;
+function setTracking(px){ if (hasLS) ctx.letterSpacing = px + 'px'; }
+
+function wrap(text, maxW){
+  const out = [];
+  for (const para of text.split('\n')){
+    const words = para.split(/\s+/).filter(Boolean);
+    if (!words.length){ out.push(''); continue; }
+    let line = words[0];
+    for (let i=1;i<words.length;i++){
+      const t = line + ' ' + words[i];
+      if (ctx.measureText(t).width <= maxW) line = t; else { out.push(line); line = words[i]; }
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+// Build a text block at a given scale
+function measureBlock(maxW, scale){
+  const it = cur();
+  const parts = []; let h = 0, widest = 0;
+  const lhMul = S.lineHeight/100;
+  const tSize = S.titleSize*scale, sSize = S.subSize*scale;
+  const title = (S.upper ? it.title.toUpperCase() : it.title).trim();
+  if (title){
+    const font = fontStr(S.titleWeight, tSize, S.titleFont);
+    ctx.font = font; setTracking(S.tracking*scale);
+    const lines = wrap(title, maxW);
+    lines.forEach(l => widest = Math.max(widest, ctx.measureText(l).width));
+    setTracking(0);
+    const lh = tSize*lhMul;
+    parts.push({type:'text', lines, font, lh, color:S.titleColor, gap:0, track:S.tracking*scale});
+    h += lines.length*lh;
+  }
+  const sub = it.subtitle.trim();
+  if (sub){
+    const font = fontStr(400, sSize, S.bodyFont);
+    ctx.font = font;
+    const lines = wrap(sub, maxW);
+    lines.forEach(l => widest = Math.max(widest, ctx.measureText(l).width));
+    const lh = sSize*Math.max(1.15, lhMul);
+    const gap = parts.length ? sSize*0.55 : 0;
+    parts.push({type:'text', lines, font, lh, color:S.subColor, gap, track:0});
+    h += gap + lines.length*lh;
+  }
+  if (S.cta.trim()){
+    const cSize = S.subSize*0.95*scale;
+    const font = fontStr(700, cSize, S.bodyFont);
+    ctx.font = font; setTracking(cSize*0.06);
+    const tw = ctx.measureText(S.cta.trim().toUpperCase()).width;
+    setTracking(0);
+    const ph = cSize*2.3, pw = tw + cSize*2.4;
+    widest = Math.max(widest, pw);
+    const gap = parts.length ? cSize*1.0 : 0;
+    parts.push({type:'pill', text:S.cta.trim().toUpperCase(), font, h:ph, w:pw, gap, track:cSize*0.06});
+    h += gap + ph;
+  }
+  if (S.footer.trim()){
+    const fSize = S.subSize*0.7*scale;
+    const font = fontStr(600, fSize, S.bodyFont);
+    ctx.font = font; setTracking(fSize*0.08);
+    const t = S.footer.trim();
+    widest = Math.max(widest, ctx.measureText(t).width);
+    setTracking(0);
+    const gap = parts.length ? fSize*1.1 : 0;
+    parts.push({type:'text', lines:[t], font, lh:fSize*1.3, color:S.footerColor, gap, track:fSize*0.08});
+    h += gap + fSize*1.3;
+  }
+  return { parts, h, widest };
+}
+function fitBlock(maxW, maxH){
+  let scale = 1, b;
+  for (let i=0;i<60;i++){
+    b = measureBlock(maxW, scale);
+    if ((b.h <= maxH && b.widest <= maxW + 0.5) || scale < 0.2) break;
+    scale *= 0.95;
+  }
+  return b;
+}
+function drawBlock(b, x, y, w, shadow){
+  for (const p of b.parts){
+    y += p.gap;
+    if (shadow && p.type==='text'){ ctx.shadowColor='rgba(0,0,0,.45)'; ctx.shadowBlur=18; ctx.shadowOffsetY=3; }
+    if (p.type==='text'){
+      ctx.font = p.font; ctx.fillStyle = p.color; ctx.textAlign = S.align; setTracking(p.track);
+      const tx = S.align==='left' ? x : S.align==='right' ? x+w : x+w/2;
+      for (const line of p.lines){ ctx.fillText(line, tx, y + p.lh/2); y += p.lh; }
+      setTracking(0);
+    } else if (p.type==='pill'){
+      const px = S.align==='left' ? x : S.align==='right' ? x+w-p.w : x+(w-p.w)/2;
+      ctx.fillStyle = S.ctaBg; rr(px, y, p.w, p.h, p.h/2); ctx.fill();
+      ctx.font = p.font; ctx.fillStyle = S.ctaColor; ctx.textAlign='center'; setTracking(p.track);
+      ctx.fillText(p.text, px + p.w/2 + p.track/2, y + p.h/2);
+      setTracking(0);
+      y += p.h;
+    }
+    ctx.shadowColor='transparent'; ctx.shadowBlur=0; ctx.shadowOffsetY=0;
+  }
+}
+
+function drawCover(it, r){
+  const img = it.img;
+  const s = Math.max(r.w/img.width, r.h/img.height) * it.zoom;
+  const dw = img.width*s, dh = img.height*s;
+  const dx = r.x + (r.w-dw)/2 + it.ox, dy = r.y + (r.h-dh)/2 + it.oy;
+  ctx.save(); ctx.beginPath(); ctx.rect(r.x,r.y,r.w,r.h); ctx.clip();
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, dx, dy, dw, dh);
+  ctx.restore();
+}
+function drawPlaceholder(r){
+  ctx.save(); ctx.beginPath(); ctx.rect(r.x,r.y,r.w,r.h); ctx.clip();
+  const g = ctx.createLinearGradient(r.x, r.y, r.x+r.w, r.y+r.h);
+  g.addColorStop(0,'#e9dfe6'); g.addColorStop(1,'#d9e3dc');
+  ctx.fillStyle = g; ctx.fillRect(r.x,r.y,r.w,r.h);
+  ctx.fillStyle = 'rgba(80,60,75,.45)'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.font = `600 ${Math.round(r.w*0.045)}px -apple-system, Segoe UI, sans-serif`;
+  ctx.fillText('Drop an image to start', r.x+r.w/2, r.y+r.h*0.35);
+  ctx.restore();
+}
+
+// ---------- render ----------
+let imgRegion = {x:0,y:0,w:1000,h:1500};
+function render(){
+  const [W,H] = SIZES[S.size];
+  if (cv.width!==W) cv.width=W;
+  if (cv.height!==H) cv.height=H;
+  const it = cur();
+  const M = Math.round(W*0.07), pad = Math.round(W*0.06);
+  const pos = S.position;
+  ctx.textBaseline = 'middle';
+
+  // background
+  ctx.fillStyle = (S.layout==='split' || S.layout==='framed') ? S.boxColor : S.bgColor;
+  ctx.fillRect(0,0,W,H);
+
+  // image region
+  let r = {x:0,y:0,w:W,h:H}, textR = null;
+  if (S.layout==='split'){
+    const ih = Math.round(H*S.split/100);
+    if (pos==='top'){ r = {x:0,y:H-ih,w:W,h:ih}; textR = {x:0,y:0,w:W,h:H-ih}; }
+    else { r = {x:0,y:0,w:W,h:ih}; textR = {x:0,y:ih,w:W,h:H-ih}; }
+  } else if (S.layout==='framed'){
+    const f = Math.round(W*0.05), ih = Math.round(H*S.split/100);
+    if (pos==='top'){ r = {x:f,y:H-ih,w:W-2*f,h:ih-f}; textR = {x:0,y:0,w:W,h:H-ih}; }
+    else { r = {x:f,y:f,w:W-2*f,h:ih-f}; textR = {x:0,y:ih,w:W,h:H-ih}; }
+    ctx.fillStyle = S.bgColor; ctx.fillRect(r.x, r.y, r.w, r.h);
+  } else {
+    ctx.fillStyle = S.bgColor; ctx.fillRect(0,0,W,H);
+  }
+  imgRegion = r;
+  if (it.img) drawCover(it, r); else drawPlaceholder(r);
+
+  // text
+  if (S.layout==='band'){
+    const maxW = W-2*pad;
+    const b = fitBlock(maxW, H*0.42);
+    const bh = b.h + pad*1.6;
+    const by = pos==='top' ? 0 : pos==='bottom' ? H-bh : (H-bh)/2;
+    ctx.fillStyle = hexToRgba(S.boxColor, S.boxOpacity/100); ctx.fillRect(0, by, W, bh);
+    drawBlock(b, pad, by+(bh-b.h)/2, maxW, S.shadow);
+  } else if (S.layout==='box'){
+    const boxW = W-2*M, inner = boxW-2*pad;
+    const b = fitBlock(inner, H*0.5);
+    const bh = b.h + 2*pad;
+    const by = pos==='top' ? M : pos==='bottom' ? H-M-bh : (H-bh)/2;
+    ctx.save(); ctx.shadowColor='rgba(0,0,0,.12)'; ctx.shadowBlur=30; ctx.shadowOffsetY=8;
+    ctx.fillStyle = hexToRgba(S.boxColor, S.boxOpacity/100); rr(M, by, boxW, bh, 22); ctx.fill(); ctx.restore();
+    drawBlock(b, M+pad, by+pad, inner, S.shadow);
+  } else if (S.layout==='overlay'){
+    const a = S.fade/100;
+    let g;
+    if (pos==='center'){ ctx.fillStyle = `rgba(0,0,0,${a*0.75})`; ctx.fillRect(0,0,W,H); }
+    else {
+      g = pos==='top' ? ctx.createLinearGradient(0,0,0,H*0.7) : ctx.createLinearGradient(0,H,0,H*0.3);
+      g.addColorStop(0, `rgba(0,0,0,${a})`); g.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+    }
+    const maxW = W-2*M;
+    const b = fitBlock(maxW, H*0.5);
+    const y = pos==='top' ? M*1.2 : pos==='bottom' ? H-M*1.2-b.h : (H-b.h)/2;
+    // light text on the dark fade, regardless of theme colors
+    b.parts.forEach((p, i) => { if (p.type==='text') p.color = i===0 ? '#ffffff' : 'rgba(255,255,255,.88)'; });
+    drawBlock(b, M, y, maxW, true);
+  } else if (textR){
+    const maxW = W-2*pad;
+    const b = fitBlock(maxW, textR.h - pad*1.4);
+    drawBlock(b, pad, textR.y + (textR.h-b.h)/2, maxW, S.shadow);
+  }
+
+  if (S.border){
+    const i = Math.round(W*0.025);
+    ctx.strokeStyle = hexToRgba(S.layout==='overlay' ? '#ffffff' : S.titleColor, 0.55);
+    ctx.lineWidth = 3; ctx.strokeRect(i, i, W-2*i, H-2*i);
+  }
+}
+let raf = 0;
+const schedule = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(render); };
+
+// ---------- UI binding ----------
+document.querySelectorAll('.fontSel').forEach(sel => {
+  FONTS.forEach(([label, fam]) => { const o = document.createElement('option'); o.value = fam; o.textContent = label; sel.appendChild(o); });
+});
+function ensureFontOption(fam){
+  document.querySelectorAll('.fontSel').forEach(sel => {
+    if (![...sel.options].some(o => o.value===fam)){ const o = document.createElement('option'); o.value=fam; o.textContent=fam.split(',')[0].replace(/'/g,''); sel.appendChild(o); }
+  });
+}
+const keyed = document.querySelectorAll('[data-key]');
+function syncControls(){
+  ensureFontOption(S.titleFont); ensureFontOption(S.bodyFont);
+  keyed.forEach(el => {
+    const k = el.dataset.key;
+    if (el.type==='checkbox') el.checked = !!S[k]; else el.value = S[k];
+  });
+  document.querySelectorAll('#posSeg button').forEach(b => b.classList.toggle('on', b.dataset.pos===S.position));
+  document.querySelectorAll('#alignSeg button').forEach(b => b.classList.toggle('on', b.dataset.align===S.align));
+  updateLabels();
+}
+function updateLabels(){
+  $('splitVal').textContent = S.split + '%';
+  $('trackVal').textContent = S.tracking;
+  $('titleSizeVal').textContent = S.titleSize + 'px';
+  $('subSizeVal').textContent = S.subSize + 'px';
+  $('lhVal').textContent = (S.lineHeight/100).toFixed(2);
+  $('opVal').textContent = S.boxOpacity + '%';
+  $('fadeVal').textContent = S.fade + '%';
+}
+keyed.forEach(el => {
+  el.addEventListener('input', () => {
+    const k = el.dataset.key;
+    if (el.type==='checkbox') S[k] = el.checked;
+    else if (el.type==='range') S[k] = Number(el.value);
+    else S[k] = el.value;
+    updateLabels(); save(); schedule();
+  });
+});
+document.querySelectorAll('#posSeg button').forEach(b => b.onclick = () => { S.position = b.dataset.pos; save(); syncControls(); schedule(); });
+document.querySelectorAll('#alignSeg button').forEach(b => b.onclick = () => { S.align = b.dataset.align; save(); syncControls(); schedule(); });
+
+const themesEl = $('themes');
+THEMES.forEach(t => {
+  const b = document.createElement('button'); b.className='theme';
+  b.innerHTML = `<span class="sw" style="background:${t.c.boxColor}"></span><span class="sw" style="background:${t.c.titleColor}"></span>${t.name}`;
+  b.onclick = () => { Object.assign(S, t.c); save(); syncControls(); schedule(); };
+  themesEl.appendChild(b);
+});
+
+$('resetStyle').onclick = () => { if (confirm('Reset all style settings to default?')){ S = Object.assign({}, DEFAULTS); save(); syncControls(); schedule(); } };
+
+// per-pin fields
+function syncItemFields(){
+  const it = cur();
+  renderAI();
+  $('title').value = it.title; $('subtitle').value = it.subtitle;
+  $('zoom').value = Math.round(it.zoom*100); $('zoomVal').textContent = Math.round(it.zoom*100)+'%';
+}
+$('title').addEventListener('input', e => { cur().title = e.target.value; schedule(); renderThumbs(false); });
+$('subtitle').addEventListener('input', e => { cur().subtitle = e.target.value; schedule(); });
+$('zoom').addEventListener('input', e => { cur().zoom = e.target.value/100; $('zoomVal').textContent = e.target.value+'%'; schedule(); });
+$('resetPos').onclick = () => { const it = cur(); it.zoom=1; it.ox=0; it.oy=0; syncItemFields(); schedule(); };
+$('dupItem').onclick = () => {
+  if (idx<0) return;
+  const it = cur();
+  items.splice(idx+1, 0, Object.assign({}, it, { ox:it.ox, oy:it.oy }));
+  idx++; renderThumbs(); syncItemFields(); schedule();
+};
+
+// ---------- images ----------
+function renderThumbs(full=true){
+  const el = $('thumbs');
+  if (!full){ return; }
+  el.innerHTML = '';
+  items.forEach((it, i) => {
+    const d = document.createElement('div');
+    d.className = 'thumb' + (i===idx ? ' active' : '');
+    d.title = it.title || it.name;
+    d.innerHTML = `<img src="${it.src}"><div class="x" title="Remove">✕</div>`;
+    d.onclick = (e) => {
+      if (e.target.classList.contains('x')){ items.splice(i,1); if (idx>=items.length) idx = items.length-1; }
+      else idx = i;
+      renderThumbs(); syncItemFields(); schedule();
+    };
+    el.appendChild(d);
+  });
+}
+function addFiles(files){
+  const list = [...files].filter(f => f.type.startsWith('image/'));
+  if (!list.length) return;
+  const template = cur();
+  let pending = list.length;
+  const startLen = items.length;
+  const done = () => {
+    idx = items.length-1; renderThumbs(); syncItemFields(); schedule();
+  };
+  list.forEach(f => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        items.push({ img, src:reader.result, name:f.name.replace(/\.[^.]+$/,''), title:template.title, subtitle:template.subtitle, zoom:1, ox:0, oy:0 });
+        if (--pending===0) done();
+      };
+      img.onerror = () => { if (--pending===0) done(); };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(f);
+  });
+}
+const drop = $('drop');
+drop.onclick = () => $('file').click();
+$('file').onchange = e => { addFiles(e.target.files); e.target.value=''; };
+['dragenter','dragover'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); if (ev==='drop' || e.target===document.documentElement) drop.classList.remove('over'); }));
+document.addEventListener('drop', e => { drop.classList.remove('over'); if (e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files); });
+document.addEventListener('paste', e => {
+  const files = [...(e.clipboardData?.items||[])].filter(i => i.type.startsWith('image/')).map(i => i.getAsFile());
+  if (files.length){ e.preventDefault(); addFiles(files); }
+});
+
+// ---------- drag to pan / wheel to zoom ----------
+let drag = null;
+cv.addEventListener('pointerdown', e => {
+  if (!cur().img) { $('file').click(); return; }
+  drag = { x:e.clientX, y:e.clientY }; cv.setPointerCapture(e.pointerId); cv.classList.add('dragging');
+});
+cv.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const k = cv.width / cv.getBoundingClientRect().width;
+  const it = cur(); it.ox += (e.clientX-drag.x)*k; it.oy += (e.clientY-drag.y)*k;
+  drag = { x:e.clientX, y:e.clientY }; schedule();
+});
+const endDrag = () => { drag = null; cv.classList.remove('dragging'); };
+cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
+cv.addEventListener('wheel', e => {
+  if (!cur().img) return;
+  e.preventDefault();
+  const it = cur();
+  it.zoom = Math.min(3, Math.max(0.5, it.zoom * (e.deltaY < 0 ? 1.05 : 0.95)));
+  syncItemFields(); schedule();
+}, { passive:false });
+
+// ---------- custom font ----------
+let fontCount = 0;
+$('fontFile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const name = 'Custom-' + f.name.replace(/\.[^.]+$/,'').replace(/[^\w-]/g,'') + '-' + (++fontCount);
+    const face = new FontFace(name, await f.arrayBuffer());
+    await face.load(); document.fonts.add(face);
+    const fam = `'${name}', sans-serif`;
+    document.querySelectorAll('.fontSel').forEach(sel => { const o = document.createElement('option'); o.value=fam; o.textContent='★ '+f.name; sel.appendChild(o); });
+    S.titleFont = fam; syncControls(); schedule();
+    alert('Font loaded and applied to the headline. (Custom fonts need re-loading each time you open the app.)');
+  } catch(err){ alert('Could not load that font file.'); }
+  e.target.value = '';
+};
+
+// ---------- export ----------
+const slug = s => (s||'pin').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60) || 'pin';
+const fileName = (it, n) => `${slug(it.title || it.name)}${n ? '-'+n : ''}-pin.${S.format==='jpeg'?'jpg':'png'}`;
+$('dlCsv').onclick = () => {
+  const list = items.length ? items : [draft];
+  const q = v => '"' + String(v||'').replace(/"/g,'""') + '"';
+  const rows = [['File','Pinterest title','Pinterest description','Headline on image'].map(q).join(',')];
+  list.forEach((it, i) => rows.push([fileName(it, items.length ? i+1 : 0), it.ai?.pinTitle, it.ai?.pinDescription, it.title].map(q).join(',')));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + rows.join('\r\n')], {type:'text/csv'}));
+  a.download = 'pin-titles-descriptions.csv'; a.click();
+};
+
+// ---------- AI text generation ----------
+const A_DEFAULTS = { provider:'ollama', ollamaUrl:'http://localhost:11434', ollamaModel:'gemma3',
+  claudeKey:'', claudeModel:'claude-sonnet-5-5', context:'', tone:'friendly and warm', dest:'etsy-listing', disclosure:'Affiliate link: as an Amazon Associate I earn from qualifying purchases.', instructions:'', examples:'' };
+let A = Object.assign({}, A_DEFAULTS);
+try { const s = JSON.parse(localStorage.getItem('pinmaker-ai') || 'null'); if (s) A = Object.assign(A, s); } catch(e){}
+if (/listicle/.test(A.tone)) A.tone = 'friendly and warm';
+if (!localStorage.getItem('pinmaker-model-v2')){ if (A.claudeModel==='claude-haiku-5-5') A.claudeModel = 'claude-sonnet-5-5'; try { localStorage.setItem('pinmaker-model-v2','1'); } catch(e){} }
+const saveA = () => { try { localStorage.setItem('pinmaker-ai', JSON.stringify(A)); } catch(e){} };
+const aiFields = { aiProvider:'provider', ollamaUrl:'ollamaUrl', ollamaModel:'ollamaModel', claudeKey:'claudeKey',
+  claudeModel:'claudeModel', aiContext:'context', aiTone:'tone', aiDest:'dest', aiDisclosure:'disclosure', aiInstructions:'instructions', aiExamples:'examples' };
+for (const [id, k] of Object.entries(aiFields)){
+  const el = $(id);
+  if (el.type==='checkbox') el.checked = !!A[k]; else el.value = A[k];
+  el.addEventListener('input', () => { A[k] = el.type==='checkbox' ? el.checked : el.tagName==='TEXTAREA' ? el.value : el.value.trim(); saveA(); showProviderCfg(); if (k==='provider') setStatus('', false, 'aiSetStatus'); });
+}
+const likedList = () => (A.examples||'').split('\n').map(l => l.trim()).filter(Boolean);
+const normH = t => (t||'').replace(/\s+/g,' ').trim();
+function updateStar(){
+  const btn = $('starHeadline'), h = normH(cur().title), list = likedList();
+  const on = !!h && list.includes(h);
+  btn.textContent = on ? '★ Saved as a liked headline (click to remove)' : '☆ I like this headline (teach the AI)';
+  btn.classList.toggle('primary', on);
+  btn.disabled = !h;
+  $('likedCount').textContent = list.length ? `${list.length} saved` : 'none yet';
+}
+$('starHeadline').onclick = () => {
+  const h = normH(cur().title); if (!h) return;
+  let list = likedList();
+  list = list.includes(h) ? list.filter(x => x !== h) : [...list, h];
+  A.examples = list.join('\n'); $('aiExamples').value = A.examples; saveA(); updateStar();
+};
+$('title').addEventListener('input', updateStar);
+$('aiExamples').addEventListener('input', updateStar);
+function showProviderCfg(){
+  $('disclosureWrap').style.display = A.dest==='amazon' ? '' : 'none';
+  $('ollamaCfg').style.display = A.provider==='ollama' ? '' : 'none';
+  $('claudeCfg').style.display = A.provider==='claude' ? '' : 'none';
+}
+showProviderCfg();
+
+function setStatus(msg, err, el='aiStatus'){ const s = $(el); s.textContent = msg; s.classList.toggle('err', !!err); }
+
+function imageToB64(img, max=1024){
+  const s = Math.min(1, max/Math.max(img.width, img.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width*s); c.height = Math.round(img.height*s);
+  const x = c.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(img,0,0,c.width,c.height);
+  return c.toDataURL('image/jpeg', 0.85).split(',')[1];
+}
+
+const SYSTEM_PROMPT = `You are an expert e-commerce copywriter who writes the text overlaid on Pinterest Pins for small Etsy and online shops. These Pins are product ads: tapping the Pin takes the shopper to a page where they can buy. Your job is to make them want the product and tap through to buy it.
+
+The image only tells you WHAT the product is. Never narrate what is visible (colors, objects, layout, "featuring...", "with..."). Mention a visual detail only when it is the reason someone would buy.
+
+Write to the shopper scrolling Pinterest. Focus on what they get, how it makes them feel, who it is for, and the occasion. The shopper should know at a glance that this is a product they can buy.
+
+Bad (describes the image):
+- Red and Green Lettering on Crisp White Paper
+- Kraft Paper With Snowmen and Evergreens
+
+Bad (sounds like a blog post, not a product):
+- Why Every Gift Is About to Look Better
+- 5 Ways to Wrap Gifts Like a Pro
+- The Secret to Prettier Presents
+
+Good (sells the product):
+- The Gift Wrap Everyone Asks About
+- Retro Christmas Wrapping Paper for Cozy Gifting
+- Make Every Present Look Boutique-Wrapped
+- Finally, a Planner You'll Actually Use
+
+Never invent facts the seller didn't give you (prices, discounts, free shipping, materials, quantities). Use plain, natural language: no hashtags, emojis, quotation marks, or clichés like "elevate" or "unleash".`;
+
+const DESTS = {
+  'etsy-listing': 'an Etsy listing where the shopper can buy this exact item',
+  'etsy-shop': "the seller's Etsy shop (or a shop section) with this item and similar products",
+  'store': "a product page on the seller's own online store",
+  'blog': 'a blog post or article',
+  'amazon': "an Amazon product page, through the creator's affiliate link. The creator recommends this product; they did not make it and do not sell it",
+};
+
+function buildPrompt(){
+  const likes = (A.examples||'').split('\n').map(l => l.trim()).filter(Boolean).slice(-15);
+  const blog = A.dest==='blog';
+  const amazon = A.dest==='amazon';
+  const amazonRules = amazon ? `
+This is an Amazon affiliate Pin. Write as a curator recommending a great find (e.g. "The Amazon Find Every Mom Needs", "My Favorite Cozy Gift Under the Tree" style), never as the brand, maker or store. Rules:
+- Don't claim the creator personally owns, uses or tested it unless their note says so.
+- Never mention prices, deals, discounts, ratings, reviews, "bestseller", Prime or shipping (these change and can't be promised).
+- Name the product type clearly so shoppers know exactly what they're getting.
+- cta: e.g. "Shop now", "See it on Amazon", "Get yours".
+- pinDescription: keep it under 380 characters (a disclosure line will be added separately; don't write one).
+` : '';
+  const headlineRules = blog
+    ? `- headlines: 5 options, max 9 words each. This Pin links to an article, so curiosity, how-to, numbered lists and "why" hooks are welcome. Each headline uses a different angle.`
+    : `- headlines: 5 options, max 8 words each. These are product ads, so make it clear something is for sale. At least 3 of the 5 must name the product type (e.g. "wrapping paper", "planner", "earrings"). No questions, no "Why...", "How to...", "X ways/tips/ideas", "secret", "here's", or teaser lines that promise information instead of a product. Use a DIFFERENT angle for each: (1) the product plus its best benefit, (2) gift or occasion, (3) the outcome or feeling it gives, (4) the problem it solves, (5) a short, appealing shop-style product line.`;
+  const subRules = blog
+    ? `- subtitles: 3 options, max 8 words, what the reader will learn or get.`
+    : `- subtitles: 3 options, max 8 words, a concrete reason to buy or what they get (use facts from the seller's note${amazon ? '' : ', e.g. "Printable · Instant download"'}).`;
+  const ctaRule = blog ? `- cta: 2-3 word button text (e.g. "Read more").` : `- cta: 2-3 word shopping button text (e.g. "Shop now", "Get yours").`;
+  return `Write Pinterest Pin text for the product in this image.
+
+Where the Pin links: ${DESTS[A.dest] || DESTS['etsy-listing']}
+Product (from the seller): ${A.context || '(not given; work out what the product is from the image)'}
+Tone: ${A.tone}
+${amazonRules}${A.instructions ? `\nSeller's instructions (follow these closely):\n${A.instructions}\n` : ''}${likes.length ? `\nHeadlines the seller loves. Match their style, length and voice (don't copy them):\n${likes.map(l => '- ' + l).join('\n')}\n` : ''}
+Write:
+${headlineRules}
+${subRules}
+${ctaRule}
+- pinTitle: under 100 characters. This one is for Pinterest search, so lead with the keywords people search for this ${blog ? 'topic' : 'product'}, phrased naturally.
+- pinDescription: 2-3 sentences, under 450 characters. Open with the benefit, ${blog ? 'say what the article covers' : 'make clear it is available to buy'}, and work in natural search keywords. No hashtags.
+
+Reply with ONLY valid JSON in this exact shape:
+{"headlines":["","","","",""],"subtitles":["","",""],"cta":"","pinTitle":"","pinDescription":""}`;
+}
+
+let lastRaw = '';
+// If a reply was cut off mid-way, keep everything up to the last complete value and close it off.
+function salvageJSON(t){
+  const st = []; let inStr = false, esc = false, isKey = false, safe = null;
+  for (let i=0;i<t.length;i++){
+    const ch = t[i];
+    if (inStr){
+      if (esc) esc = false;
+      else if (ch==='\\') esc = true;
+      else if (ch==='"'){
+        inStr = false;
+        const top = st[st.length-1];
+        if (isKey){ top.key = false; }
+        else safe = { i, closers: st.map(x => x.t==='{' ? '}' : ']').reverse().join('') };
+      }
+      continue;
+    }
+    const top = st[st.length-1];
+    if (ch==='"'){ inStr = true; isKey = !!(top && top.t==='{' && top.key); }
+    else if (ch==='{') st.push({t:'{', key:true});
+    else if (ch==='[') st.push({t:'['});
+    else if (ch==='}' || ch===']'){ st.pop(); safe = { i, closers: st.map(x => x.t==='{' ? '}' : ']').reverse().join('') }; if (!st.length) break; }
+    else if (ch===',' && top && top.t==='{') top.key = true;
+  }
+  if (!safe) return null;
+  try { return JSON.parse(t.slice(0, safe.i+1) + safe.closers); } catch(e){ return null; }
+}
+function parseAI(text){
+  const clean = (text||'').replace(/```(?:json)?/gi,'').trim();
+  if (!clean) throw new Error('The AI sent back an empty reply. Make sure the model can read images (gemma3, qwen2.5vl, llava or a Claude model), then try again.');
+  const arr = v => (Array.isArray(v) ? v : v ? [v] : []).map(s => String(s).replace(/^["'\s]+|["'\s]+$/g,'')).filter(Boolean);
+  const a = clean.indexOf('{'), b = clean.lastIndexOf('}');
+  if (a >= 0){
+    let body = clean.slice(a, b > a ? b+1 : undefined), j = null;
+    try { j = JSON.parse(body); }
+    catch(e){
+      // repair common slips: smart quotes, trailing commas
+      body = body.replace(/[“”]/g,'"').replace(/,\s*([}\]])/g,'$1');
+      try { j = JSON.parse(body); } catch(e2){}
+    }
+    if (!j) j = salvageJSON(clean.slice(a).replace(/[\u201C\u201D]/g,'"'));
+    if (j){
+      // accept slightly different key names
+      const pick = (...ks) => { for (const k of ks){ for (const key of Object.keys(j)) if (key.toLowerCase().replace(/[^a-z]/g,'')===k) return j[key]; } };
+      return { headlines:arr(pick('headlines','headline','titles')), subtitles:arr(pick('subtitles','subtitle','subheadlines')),
+               cta:String(pick('cta','button','buttontext')||'').trim(),
+               pinTitle:String(pick('pintitle','pinteresttitle','title')||'').trim(),
+               pinDescription:String(pick('pindescription','pinterestdescription','description')||'').trim() };
+    }
+  }
+  // fallback: the model wrote a plain list instead of JSON
+  const lines = clean.split('\n').map(l => l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/,'').replace(/\*\*/g,'').replace(/^["']|["']$/g,'').trim())
+    .filter(l => l && l.split(/\s+/).length <= 12 && !/:$/.test(l));
+  if (lines.length) return { headlines:lines.slice(0,5), subtitles:lines.slice(5,8), cta:'', pinTitle:'', pinDescription:'' };
+  throw new Error('The AI reply was not in the expected format.');
+}
+
+const AI_SCHEMA = { type:'object', required:['headlines','subtitles','cta','pinTitle','pinDescription'], properties:{
+  headlines:{ type:'array', items:{ type:'string' } }, subtitles:{ type:'array', items:{ type:'string' } },
+  cta:{ type:'string' }, pinTitle:{ type:'string' }, pinDescription:{ type:'string' } } };
+
+async function callOllama(b64, prompt){
+  let res;
+  try {
+    res = await fetch(A.ollamaUrl.replace(/\/$/,'') + '/api/chat', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model:A.ollamaModel, stream:false, format:AI_SCHEMA, options:{temperature:0.7, num_predict:4096, num_ctx:8192},
+        messages:[{ role:'system', content:SYSTEM_PROMPT }, { role:'user', content:prompt, images: b64 ? [b64] : undefined }] })
+    });
+  } catch(e){
+    throw new Error(`Can't reach Ollama at ${A.ollamaUrl}. Make sure Ollama is running and OLLAMA_ORIGINS is set to * (then restart Ollama).`);
+  }
+  if (!res.ok){
+    const t = await res.text().catch(()=> '');
+    if (res.status===404 || /not found/i.test(t)) throw new Error(`Model "${A.ollamaModel}" isn't installed. Run: ollama pull ${A.ollamaModel}`);
+    if (res.status===403) throw new Error('Ollama blocked this page. Set OLLAMA_ORIGINS to * and restart Ollama.');
+    throw new Error(`Ollama error ${res.status}: ${t.slice(0,200)}`);
+  }
+  const j = await res.json();
+  // some models put their answer in a separate "thinking" field
+  return (j.message?.content || '').trim() || j.message?.thinking || j.response || '';
+}
+
+async function callClaude(b64, prompt){
+  if (!A.claudeKey) throw new Error('Add your Anthropic API key in "✨ AI text settings".');
+  let res;
+  try {
+    const content = [];
+    if (b64) content.push({ type:'image', source:{ type:'base64', media_type:'image/jpeg', data:b64 } });
+    content.push({ type:'text', text:prompt });
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'x-api-key':A.claudeKey, 'anthropic-version':'2023-06-01',
+                'anthropic-dangerous-direct-browser-access':'true' },
+      body: JSON.stringify({ model:A.claudeModel, max_tokens:4096, system:SYSTEM_PROMPT, messages:[{ role:'user', content }] })
+    });
+  } catch(e){ throw new Error("Can't reach the Claude API. Check your internet connection."); }
+  const j = await res.json().catch(()=> ({}));
+  if (!res.ok) throw new Error(res.status===401 ? 'That API key was rejected. Check it in settings.' : `Claude API error: ${j.error?.message || res.status}`);
+  return (j.content||[]).filter(c => c.type==='text').map(c => c.text).join('');
+}
+
+async function generateFor(it){
+  if (!it.img) throw new Error('Add an image first.');
+  const b64 = imageToB64(it.img);
+  let r = null, err = null;
+  for (let attempt=0; attempt<2 && !r; attempt++){   // one automatic retry
+    const raw = A.provider==='claude' ? await callClaude(b64, buildPrompt()) : await callOllama(b64, buildPrompt());
+    lastRaw = raw;
+    try { r = parseAI(raw); if (!r.headlines.length) { r = null; throw new Error('No headlines came back.'); } }
+    catch(e){ err = e; }
+  }
+  if (!r) throw err;
+  if (A.dest==='amazon'){
+    const d = (A.disclosure||'').trim();
+    const desc = r.pinDescription.replace(/\s*#?(ad|affiliate)\b\.?\s*$/i,'').trim();
+    if (d && !desc.toLowerCase().includes(d.toLowerCase().slice(0,25))) r.pinDescription = (d + ' ' + desc).trim().slice(0, 500);
+  }
+  it.ai = r;
+  it.title = r.headlines[0] || it.title;
+  it.subtitle = r.subtitles[0] || it.subtitle;
+}
+
+let busy = false;
+async function generateMany(list){
+  if (busy || !list.length) return;
+  busy = true; $('aiGen').disabled = true; $('aiGenAll').disabled = true;
+  let fails = 0, lastErr = '';
+  for (let i=0;i<list.length;i++){
+    lastRaw = null;
+    setStatus(list.length>1 ? `✨ Writing text for Pin ${i+1} of ${list.length}…` : '✨ Looking at your image…');
+    try { await generateFor(list[i]); }
+    catch(e){ fails++; lastErr = e.message; if (/reach|blocked|key|installed/i.test(e.message)) break; }
+    if (list[i]===cur()){ syncItemFields(); schedule(); }
+  }
+  busy = false; $('aiGen').disabled = false; $('aiGenAll').disabled = false;
+  syncItemFields(); schedule();
+  if (fails){ setStatus(lastErr, true); showRaw(); }
+  else setStatus(list.length>1 ? `Done: text written for ${list.length} Pins.` : 'Done. Click any option below to swap it in.');
+}
+$('aiGen').onclick = () => {
+  if (!cur().img){ setStatus('Add an image first.', true); return; }
+  generateMany([cur()]);
+};
+$('aiGenAll').onclick = () => {
+  if (!items.length){ setStatus('Add some images first.', true, 'aiSetStatus'); return; }
+  setStatus('', false, 'aiSetStatus'); generateMany(items.slice());
+};
+$('aiTest').onclick = async () => {
+  setStatus('Testing…', false, 'aiSetStatus');
+  try {
+    if (A.provider==='ollama'){
+      let res;
+      try { res = await fetch(A.ollamaUrl.replace(/\/$/,'') + '/api/tags'); }
+      catch(e){ throw new Error(`Can't reach Ollama at ${A.ollamaUrl}. Is it running, with OLLAMA_ORIGINS set to *?`); }
+      if (!res.ok) throw new Error(`Ollama responded with error ${res.status}. Check OLLAMA_ORIGINS.`);
+      const j = await res.json();
+      const names = (j.models||[]).map(m => m.name);
+      const has = names.some(n => n===A.ollamaModel || n.split(':')[0]===A.ollamaModel);
+      if (!has) throw new Error(`Connected, but "${A.ollamaModel}" isn't installed. Run: ollama pull ${A.ollamaModel}` + (names.length ? ` (installed: ${names.join(', ')})` : ''));
+      setStatus(`✓ Connected to Ollama, and ${A.ollamaModel} is ready.`, false, 'aiSetStatus');
+    } else {
+      await callClaude(null, 'Reply with the word OK.');
+      setStatus('✓ Claude API key works.', false, 'aiSetStatus');
+    }
+  } catch(e){ setStatus(e.message, true, 'aiSetStatus'); }
+};
+
+function showRaw(){
+  if (!lastRaw && lastRaw!=='') return;
+  const d = document.createElement('details'); d.style.cssText='margin-top:8px;border:none;background:transparent';
+  const sm = document.createElement('summary'); sm.textContent = 'Show what the AI replied'; sm.style.cssText='padding:4px 0;font-weight:400;font-size:12px';
+  const pre = document.createElement('textarea'); pre.readOnly = true; pre.rows = 6; pre.value = lastRaw || '(empty reply)';
+  d.append(sm, pre); $('aiStatus').appendChild(d);
+}
+function chipGroup(label, options, isOn, onPick){
+  const wrapEl = document.createElement('div');
+  const g = document.createElement('div'); g.className='grp'; g.textContent = label; wrapEl.appendChild(g);
+  const c = document.createElement('div'); c.className='chips';
+  options.forEach(o => {
+    const b = document.createElement('button'); b.className = 'chip' + (isOn(o) ? ' on' : ''); b.textContent = o;
+    b.onclick = () => { onPick(o); syncItemFields(); schedule(); save(); };
+    c.appendChild(b);
+  });
+  wrapEl.appendChild(c); return wrapEl;
+}
+function copyField(label, value, multiline, onEdit){
+  const wrapEl = document.createElement('div');
+  const g = document.createElement('div'); g.className='grp'; g.textContent = label; wrapEl.appendChild(g);
+  const row = document.createElement('div'); row.className='copyrow';
+  const f = document.createElement(multiline ? 'textarea' : 'input');
+  if (!multiline) f.type='text'; else f.rows = 4;
+  f.value = value; f.oninput = () => onEdit(f.value);
+  const b = document.createElement('button'); b.textContent='Copy';
+  b.onclick = async () => {
+    try { await navigator.clipboard.writeText(f.value); } catch(e){ f.select(); document.execCommand('copy'); }
+    b.textContent='Copied!'; setTimeout(() => b.textContent='Copy', 1200);
+  };
+  row.append(f, b); wrapEl.appendChild(row); return wrapEl;
+}
+function renderAI(){
+  const out = $('aiOut'); out.innerHTML = '';
+  const it = cur(), r = it.ai;
+  updateStar();
+  if (!r) return;
+  out.appendChild(chipGroup('Headline options', r.headlines, o => o===it.title, o => it.title = o));
+  if (r.subtitles.length) out.appendChild(chipGroup('Subtitle options', r.subtitles, o => o===it.subtitle, o => it.subtitle = o));
+  if (r.cta) out.appendChild(chipGroup('Button (applies to all Pins)', [r.cta], o => o===S.cta, o => { S.cta = S.cta===o ? '' : o; syncControls(); }));
+  out.appendChild(copyField(`Pinterest title (${r.pinTitle.length}/100)`, r.pinTitle, false, v => r.pinTitle = v));
+  out.appendChild(copyField('Pinterest description', r.pinDescription, true, v => r.pinDescription = v));
+}
+function exportCurrent(n){
+  return new Promise(res => {
+    render();
+    const it = cur();
+    const type = S.format==='jpeg' ? 'image/jpeg' : 'image/png';
+    cv.toBlob(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = fileName(it, n);
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      res();
+    }, type, 0.93);
+  });
+}
+$('dl').onclick = () => exportCurrent();
+$('dlAll').onclick = async () => {
+  if (!items.length){ exportCurrent(); return; }
+  const keep = idx;
+  for (let i=0;i<items.length;i++){ idx = i; await exportCurrent(i+1); await new Promise(r => setTimeout(r, 350)); }
+  idx = keep; renderThumbs(); syncItemFields(); schedule();
+};
+
+// ---------- init ----------
+syncControls(); syncItemFields();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(schedule);
+render();
+})();
+</script>
+</body>
+</html>

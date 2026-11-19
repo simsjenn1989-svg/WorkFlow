@@ -5,10 +5,10 @@
 | Decision | Choice | Date |
 |----------|--------|------|
 | Scope | Single user, just the owner | 2026-11-19 |
-| First product | Comfort Colors 1717, Printify Choice provider | 2026-11-19 |
+| First product | Comfort Colors 1717, Printify Choice provider, **black only** | 2026-11-19 |
 | Sales channels | TikTok Shop + Etsy | 2026-11-19 |
 | Design generation | Atlas Cloud, inside the app | 2026-11-19 |
-| Mockup sources | Both JPG/PNG and PSD; photo path built first | 2026-11-19 |
+| Mockup sources | PSD first (yours cover the 1717); photo + manual marking after | 2026-11-19 |
 | Pins | Composed locally, zero API credits | 2026-11-19 |
 | UGC video | Atlas Cloud image-to-video, from mockup renders | 2026-11-19 |
 | Listing polish | Claude via the Playground AI connector, not rebuilt in-app | 2026-11-19 |
@@ -29,33 +29,41 @@ blueprint/print-provider pair. Those values change, vary by provider, and differ
 placements. A guessed constant is how a design ends up cropped at the factory, so the app
 fetches and caches per preset instead.
 
+## Resolved
+
+1. **The Pinterest HTML app** — received and preserved at `legacy/pin-tool/index.html`.
+   Assessed in [`PIN_TOOL.md`](PIN_TOOL.md). It is more capable than expected: 5 layouts,
+   6 themes, AI copy, batch export, CSV of titles and descriptions. Exports files only; does
+   not post. On-image text is rasterized, Pinterest title/description stay live.
+
+2. **Colorways** — black only, for now. This simplifies the mockup library (one garment
+   color) and sharpens the render engine's job: DTG white ink on black is the hardest case to
+   fake convincingly, so the ink simulation in SPEC §2 matters more than it would on white.
+   It also means the print-ready checker flags art that is *too dark*, not too light.
+
+3. **PSDs cover the 1717** — so PSD import becomes the primary mockup path rather than a
+   later addition. The smart-object transform gives the print area automatically and the
+   PSD's own shading layers beat anything extracted from a flat photo. The manual
+   print-area editor is still built, but after PSD import and for templates that lack a PSD.
+
 ## Open questions
 
-1. **The existing Pinterest HTML app.** Needed before Phase 5 can be planned properly. Paste
-   the file into chat, or commit it to this repo under `legacy/pin-tool/` and I will work
-   from there. What matters: the pin sizes it outputs, whether text is baked into the image or
-   stays live, and whether it posts to Pinterest or only exports files.
+1. **Printify shop ID** — needed to push drafts. Retrievable from the API once the token is
+   set, so not blocking.
 
-2. **Printify shop ID.** The app needs the shop ID to push drafts. Retrievable from the API
-   once the token is set, so this is not blocking — just noting it is required.
+2. **Which PSDs, and how many** — the PSD files themselves are needed before Phase 3. A flat
+   lay, a hanging shot, a worn front, and one lifestyle scene is plenty to prove the engine.
 
-3. **Colorways for the 1717 preset.** Which Comfort Colors shades do you actually sell? It
-   determines how many mockup templates are worth preparing, since each garment color
-   ideally gets its own blank photo. A sensible starting set: one light (Ivory or White),
-   one mid (Sandstone or Blue Jean), one dark (Pepper or Black).
-
-4. **How many mockup templates to start with.** Three to five for the 1717 is enough to prove
-   the render engine: a flat lay, a hanging shot, a worn front, and one lifestyle scene. More
-   can be added anytime without touching code.
-
-5. **Whether the existing PSDs cover the 1717.** If they do, PSD import moves earlier in the
-   build order, because it skips the manual print-area marking entirely.
+3. **Design brightness constraint** — on black only, every design needs enough contrast to
+   read. Worth deciding whether the Atlas prompt library should bake "light colors on dark
+   background" into its defaults, or leave it per-prompt.
 
 ## Risks
 
 | Risk | Mitigation |
 |------|-----------|
-| Renders look pasted-on, not printed | Phase 3 ends with a blind side-by-side against the best existing mockups. If it loses, the render pipeline gets fixed before anything else is built on it |
+| Renders look pasted-on, not printed | Phase 3 ends with a blind side-by-side against your best existing mockups. If it loses, the render pipeline gets fixed before anything else is built on it |
+| White ink on black looks fake | The hardest case, and the only one that matters since you sell black. Handled explicitly in SPEC §2 and judged in the Phase 3 comparison |
 | Atlas spend runs away | Quote before every paid call, monthly ceiling, per-design cost ledger |
 | Printify replaces our mockups with its own on publish | Known. Handled in the Claude polish step via `printify_send_mockups_to_etsy` |
 | Printify print-area sizes drift | Fetched from the API and cached per preset, never hardcoded |

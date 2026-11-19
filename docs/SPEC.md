@@ -58,8 +58,9 @@ Steps 1–5 happen a single time per template. They are never repeated.
 2. `multiply` the shadow map over it, `screen` the highlight map — this is what makes the
    design follow the folds instead of floating above them.
 3. Apply a subtle fabric-weave texture at low opacity, scaled to the garment's pixel density.
-4. For dark garments, simulate ink behavior: slight desaturation and a touch of the garment
-   color bleeding through, because real DTG ink on a dark tee is never pure white.
+4. Simulate DTG ink on black: a white underbase is never pure white, so the app desaturates
+   slightly, lifts the blacks in the art, and lets a little garment color bleed through.
+   Getting this wrong is the most obvious tell of a fake black-tee mockup.
 5. Soften edges by a pixel or two, and add a faint displacement along the weave so straight
    lines micro-waver the way printed lines actually do.
 6. Composite back, apply the mask, and export at the preset's size.
@@ -76,8 +77,9 @@ Support both.
   flat photo. Best quality, least setup.
 - **JPG/PNG**: mark the area by hand, extract shading automatically as above.
 
-Start with JPG/PNG because the editor is needed either way; add PSD import right after, since
-it mostly removes manual steps rather than adding a new rendering path.
+Your existing PSDs cover the 1717, so PSD import is built first — it removes the manual
+marking step entirely and gives better shading. The hand-marking editor follows, for any
+mockup that has no PSD.
 
 ---
 
@@ -124,9 +126,9 @@ Between "I like this design" and "Printify will accept it":
 1. Ensure a real alpha channel; remove the background if the model didn't.
 2. Trim transparent padding, then scale to fit the blueprint's print area.
 3. Upscale to the required pixel size at 300 DPI.
-4. Flag problems before they reach Printify: resolution too low to upscale cleanly, near-white
-   ink on a white garment, detail that will vanish at print scale, or an aspect ratio that
-   will letterbox badly in the print area.
+4. Flag problems before they reach Printify: resolution too low to upscale cleanly, art too
+   dark to read on a black garment, detail that will vanish at print scale, or an aspect
+   ratio that will letterbox badly in the print area.
 
 **The print area size is fetched from Printify, never hardcoded.** Printify's catalog API
 returns each blueprint/provider's placeholders with exact pixel dimensions. Hardcoding a
@@ -143,17 +145,26 @@ Pins are composed from assets that already exist. No model call, no credits.
 - Slots are filled from existing mockup renders and the design's own art.
 - Rendering is canvas/`sharp` compositing — pure local pixel work.
 - Batch: one design × N templates, or a whole collection × one template.
+- Pin copy (headline, subtitle, CTA, Pinterest title and description) is written by a text
+  model from the design's own prompt and tags — cheap text generation, not image generation.
 
-### Integrating the existing HTML pin app
+### Integrating the existing Pin Maker
 
-The current single-file HTML tool is the starting point for this module, not something to
-throw away — it already encodes layout decisions that work. The plan:
+The existing single-file tool is substantial — 1085 lines, zero dependencies, 5 layouts, 6
+themes, custom font upload, AI copy generation via Ollama or Anthropic, batch export, and a
+CSV of Pinterest titles and descriptions. It is preserved at `legacy/pin-tool/index.html` and
+keeps working standalone.
 
-1. Read it and extract the layout maths and text handling.
-2. Port the layouts to data-driven template records so they can be edited instead of
-   hand-coded.
-3. Keep it working standalone; drive it from the design library instead of manual uploads.
-4. Add batching, which is the main thing a one-off tool tends to lack.
+Its on-image text is rasterized into the PNG while the Pinterest title and description stay
+live data — the right split, and one WorkFlow keeps.
+
+Three parts carry over intact: the tuned copywriter `SYSTEM_PROMPT`, the starred-headline
+loop that learns your voice, and `salvageJSON` for truncated model replies. The main changes
+are moving the API key server-side, feeding the model the design's known context instead of
+asking it to identify the product from a downscaled image, and turning the hardcoded layouts
+into editable template records.
+
+Full assessment and port plan: [`docs/PIN_TOOL.md`](PIN_TOOL.md).
 
 Posting to Pinterest is a later, optional step; composing and downloading pins comes first.
 
@@ -326,8 +337,9 @@ wired in.
 **Phase 2 — Atlas generation.** Prompt library, model picker, batch generate, variant
 picker, cost quoting and ledger. Transparent-background output.
 
-**Phase 3 — mockups.** Template upload, print-area editor (corners + mesh), shading
-extraction, WebGL preview, server export. *This is the phase that decides whether the whole
+**Phase 3 — mockups.** PSD import first (your 1717 PSDs give the print area and shading
+automatically), then the manual print-area editor (corners + mesh) and shading extraction for
+templates without a PSD. WebGL preview, server export, DTG-on-black ink simulation. *This is the phase that decides whether the whole
 app is worth using, so it gets a real side-by-side quality check against your best existing
 mockups before moving on.*
 

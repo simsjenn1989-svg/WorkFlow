@@ -277,3 +277,19 @@ custom font falls back to a system face silently.
 Carried over as it was: a UTF-8 BOM so Excel doesn't mangle accents, CRLF line endings,
 doubled quotes inside quoted fields, and the file name as the first column — the images and
 the text reach Pinterest separately, so the file is read beside the downloaded images.
+
+### Remembering settings
+
+The studio stores the pin style and the copy settings in `localStorage`, as the original
+did. Only *settings* are kept — the headline, the chosen render and the Pinterest fields
+belong to one pin, so reopening the studio does not re-apply the last pin's words to the
+next one.
+
+Stored values are read **after mounting**, not in the initial state. This component renders
+on the server too, so seeding state from `localStorage` would make the server's HTML and the
+browser's first render disagree, which React reports as a hydration error. The save effect
+is guarded on a `restored` flag for the same reason: without it the first save would
+overwrite the stored style with the defaults that rendered a moment before it was read.
+
+Keys carry a version (`workflow.pin.style.v1`). If a stored shape ever stops matching the
+code, bumping the version beats migrating whatever sits in a browser somewhere.

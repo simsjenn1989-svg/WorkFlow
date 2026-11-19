@@ -19,6 +19,7 @@ import {
 import type { PinTemplate } from '@/lib/pins/data';
 import type { RenderCard } from '@/lib/renders';
 import { uploadFiles } from '@/lib/upload-client';
+import { loadSettings, saveSettings, STYLE_KEY } from '@/lib/pins/persist';
 import { CopyPanel } from './CopyPanel';
 import type { CopyModel } from '@/lib/copy/generate';
 import type { CustomFont } from '@/lib/pins/fonts';
@@ -53,8 +54,29 @@ export function PinStudio({
   const [message, setMessage] = useState<string | null>(null);
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
   const [templateName, setTemplateName] = useState('');
+  // Set once the stored style has been read, so the first save cannot overwrite it with
+  // the defaults that rendered a moment earlier.
+  const [restored, setRestored] = useState(false);
   // Families that have finished loading, so the dropdowns only offer usable fonts.
   const [readyFonts, setReadyFonts] = useState<string[]>([]);
+
+  /**
+   * Restore the saved style, as the original did.
+   *
+   * Read after mounting rather than in the initial state, because this component renders on
+   * the server too: seeding state from localStorage would make the server's HTML and the
+   * browser's first render disagree, which React reports as a hydration error.
+   */
+  useEffect(() => {
+    setStyle(loadSettings(STYLE_KEY, DEFAULT_STYLE));
+    setRestored(true);
+  }, []);
+
+  // Guarded on `restored` so the first save cannot overwrite the stored style with the
+  // defaults that rendered a moment before it was read.
+  useEffect(() => {
+    if (restored) saveSettings(STYLE_KEY, style);
+  }, [style, restored]);
 
   const render = useMemo(() => renders.find((r) => r.id === renderId), [renders, renderId]);
 

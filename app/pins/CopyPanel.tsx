@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DESTINATIONS, TONES, type CopyResult } from '@/lib/copy/prompt';
 import type { CopyModel } from '@/lib/copy/generate';
+import { COPY_KEY, loadSettings, saveSettings } from '@/lib/pins/persist';
 
 /**
  * Write the overlay text, then pick from what comes back.
@@ -22,11 +23,28 @@ export function CopyPanel({
   const [model, setModel] = useState(models[0]?.id ?? '');
   const [destination, setDestination] = useState<string>('etsy-listing');
   const [tone, setTone] = useState<string>(TONES[0]);
+  // The note is about one product, so it is not remembered.
   const [note, setNote] = useState('');
+  const [restored, setRestored] = useState(false);
   const [result, setResult] = useState<CopyResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [starred, setStarred] = useState<string[]>([]);
+
+  // Read after mounting: this renders on the server too, and seeding state from
+  // localStorage would make the two first renders disagree.
+  useEffect(() => {
+    const saved = loadSettings(COPY_KEY, { model: '', destination: 'etsy-listing', tone: TONES[0] as string });
+    setDestination(saved.destination);
+    setTone(saved.tone);
+    // Only restore a model that is still on offer — a key may have been removed since.
+    if (saved.model && models.some((m) => m.id === saved.model)) setModel(saved.model);
+    setRestored(true);
+  }, [models]);
+
+  useEffect(() => {
+    if (restored) saveSettings(COPY_KEY, { model, destination, tone });
+  }, [model, destination, tone, restored]);
 
   async function generate() {
     setBusy(true);

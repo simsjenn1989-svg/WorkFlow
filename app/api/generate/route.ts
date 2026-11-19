@@ -7,6 +7,13 @@ import { estimateCents, getModel, isAtlasConfigured, startGeneration } from '@/l
 
 export const runtime = 'nodejs';
 
+/**
+ * Rendering is heavier than an ordinary request, and image generation waits on Atlas.
+ * Vercel clamps this to whatever the plan allows, so asking for more is safe.
+ */
+export const maxDuration = 60;
+
+
 const schema = z.object({
   prompt: z.string().trim().min(3).max(32000),
   model: z.string().trim().min(1),

@@ -8,6 +8,13 @@ import { toPixelQuad, type NormQuad } from '@/lib/mockups';
 
 export const runtime = 'nodejs';
 
+/**
+ * Rendering is heavier than an ordinary request, and image generation waits on Atlas.
+ * Vercel clamps this to whatever the plan allows, so asking for more is safe.
+ */
+export const maxDuration = 60;
+
+
 const point = z.object({ x: z.number(), y: z.number() });
 const schema = z.object({
   placements: z

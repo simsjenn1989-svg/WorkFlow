@@ -5,6 +5,13 @@ import { downloadOutput, getPrediction, isAtlasConfigured } from '@/lib/atlas';
 
 export const runtime = 'nodejs';
 
+/**
+ * Rendering is heavier than an ordinary request, and image generation waits on Atlas.
+ * Vercel clamps this to whatever the plan allows, so asking for more is safe.
+ */
+export const maxDuration = 60;
+
+
 type JobRow = {
   id: string;
   status: string;

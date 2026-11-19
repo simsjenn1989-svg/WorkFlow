@@ -21,6 +21,8 @@ import type { RenderCard } from '@/lib/renders';
 import { uploadFiles } from '@/lib/upload-client';
 import { CopyPanel } from './CopyPanel';
 import type { CopyModel } from '@/lib/copy/generate';
+import type { CustomFont } from '@/lib/pins/fonts';
+import { FontLoader } from './FontLoader';
 
 /**
  * The ported Pin Maker, working from finished renders instead of manual uploads.
@@ -33,10 +35,12 @@ export function PinStudio({
   renders,
   templates,
   copyModels,
+  fonts,
 }: {
   renders: RenderCard[];
   templates: PinTemplate[];
   copyModels: CopyModel[];
+  fonts: CustomFont[];
 }) {
   const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -49,6 +53,8 @@ export function PinStudio({
   const [message, setMessage] = useState<string | null>(null);
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
   const [templateName, setTemplateName] = useState('');
+  // Families that have finished loading, so the dropdowns only offer usable fonts.
+  const [readyFonts, setReadyFonts] = useState<string[]>([]);
 
   const render = useMemo(() => renders.find((r) => r.id === renderId), [renders, renderId]);
 
@@ -236,6 +242,13 @@ export function PinStudio({
     });
     router.refresh();
   }
+
+  const fontOptions: [label: string, family: string][] = [
+    ...FONTS,
+    ...fonts
+      .filter((f) => readyFonts.includes(f.family))
+      .map((f) => [`★ ${f.name}`, `'${f.family}', sans-serif`] as [string, string]),
+  ];
 
   const [W, H] = SIZES[style.size];
 
@@ -457,7 +470,7 @@ export function PinStudio({
           <label className="block space-y-1 text-xs text-zinc-400">
             Headline font
             <select className="field" value={style.titleFont} onChange={(e) => set('titleFont', e.target.value)}>
-              {FONTS.map(([label, family]) => (
+              {fontOptions.map(([label, family]) => (
                 <option key={family} value={family}>
                   {label}
                 </option>
@@ -485,7 +498,7 @@ export function PinStudio({
           <label className="block space-y-1 text-xs text-zinc-400">
             Body font
             <select className="field" value={style.bodyFont} onChange={(e) => set('bodyFont', e.target.value)}>
-              {FONTS.map(([label, family]) => (
+              {fontOptions.map(([label, family]) => (
                 <option key={family} value={family}>
                   {label}
                 </option>
@@ -498,6 +511,14 @@ export function PinStudio({
             <input type="checkbox" checked={style.shadow} onChange={(e) => set('shadow', e.target.checked)} />
             Text shadow
           </label>
+
+          <div className="border-t border-zinc-800 pt-2.5">
+            <FontLoader
+              fonts={fonts}
+              onReady={setReadyFonts}
+              onApply={(family) => set('titleFont', family)}
+            />
+          </div>
         </Section>
 
         <Section title="Colours">

@@ -263,3 +263,17 @@ of bug. The budget is 3000, and a reply that still stops on `length` is retried 
 and season — not the garment. Passing them in made the copy advertise a "Christmas tee"
 because the shirt was photographed beside a tree. Only the design's own title, tags and
 prompt describe the product.
+
+### Custom fonts
+
+Uploaded fonts are stored, not just loaded into the page. The original warned that custom
+fonts "need re-loading each time you open the app"; storing the file means a brand font is
+added once. Every stored font is registered with `FontFace` before the first draw, because a
+canvas can only draw a family the document has actually loaded — without that a pin set to a
+custom font falls back to a system face silently.
+
+### CSV export
+
+Carried over as it was: a UTF-8 BOM so Excel doesn't mangle accents, CRLF line endings,
+doubled quotes inside quoted fields, and the file name as the first column — the images and
+the text reach Pinterest separately, so the file is read beside the downloaded images.

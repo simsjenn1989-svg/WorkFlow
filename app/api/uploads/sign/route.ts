@@ -6,7 +6,7 @@ import { BUCKET, db } from '@/lib/supabase';
 export const runtime = 'nodejs';
 
 const schema = z.object({
-  kind: z.enum(['design', 'mockup', 'pin']),
+  kind: z.enum(['design', 'mockup', 'pin', 'font']),
   ext: z.string().trim().regex(/^[a-z0-9]{1,5}$/i),
 });
 
@@ -29,7 +29,9 @@ export async function POST(request: Request) {
       ? `designs/${id}/raw.${ext}`
       : parsed.data.kind === 'mockup'
         ? `mockups/${id}/source.${ext}`
-        : `pins/${id}.${ext}`;
+        : parsed.data.kind === 'pin'
+          ? `pins/${id}.${ext}`
+          : `fonts/${id}.${ext}`;
 
   const { data, error } = await db().storage.from(BUCKET).createSignedUploadUrl(path);
   if (error || !data) {

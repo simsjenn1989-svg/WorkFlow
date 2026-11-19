@@ -1,6 +1,8 @@
 import { isConfigured } from '@/lib/supabase';
 import { listRenders } from '@/lib/renders';
 import { listPinTemplates, listPins } from '@/lib/pins/data';
+import { listFonts } from '@/lib/pins/fonts';
+import { PinExport } from './PinExport';
 import { anthropicModels, DEFAULT_ATLAS_MODEL, type CopyModel } from '@/lib/copy/generate';
 import { SetupNotice } from '@/app/setup/SetupNotice';
 import { PinStudio } from './PinStudio';
@@ -10,10 +12,11 @@ export const dynamic = 'force-dynamic';
 export default async function PinsPage() {
   if (!isConfigured) return <SetupNotice />;
 
-  const [renders, templates, pins] = await Promise.all([
+  const [renders, templates, pins, fonts] = await Promise.all([
     listRenders(200),
     listPinTemplates(),
     listPins(),
+    listFonts(),
   ]);
 
   const finished = renders.filter((r) => r.status === 'done' && r.url);
@@ -44,14 +47,17 @@ export default async function PinsPage() {
           No finished renders yet. Run a batch on the Renders screen and they will appear here.
         </p>
       ) : (
-        <PinStudio renders={finished} templates={templates} copyModels={copyModels} />
+        <PinStudio renders={finished} templates={templates} copyModels={copyModels} fonts={fonts} />
       )}
 
       {pins.length > 0 ? (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold">
-            Saved pins <span className="font-normal text-zinc-500">{pins.length}</span>
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">
+              Saved pins <span className="font-normal text-zinc-500">{pins.length}</span>
+            </h2>
+            <PinExport pins={pins} />
+          </div>
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
             {pins.map((pin) => (
               <a

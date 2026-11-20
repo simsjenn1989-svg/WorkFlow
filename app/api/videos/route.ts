@@ -78,10 +78,25 @@ export async function POST(request: Request) {
 
   // Checked on the server too: the form knows, but the form is not the authority, and
   // submitting a job Atlas will reject wastes a round trip and leaves a failed row behind.
-  const required = (await getModelInput(model)).required;
-  if (required.includes('prompt') && !input.prompt.trim()) {
+  const schema_ = await getModelInput(model);
+  if (schema_.required.includes('prompt') && !input.prompt.trim()) {
     return NextResponse.json(
       { error: `${model.displayName} needs a motion prompt — describe what moves.` },
+      { status: 400 },
+    );
+  }
+
+  // Length is not a free number either. Veo 3.1 takes only 4, 6 or 8 seconds and rejects
+  // anything else with a flat "Request parameters are invalid", which arrives after the job
+  // is accepted and tells you nothing about which parameter. Refused here instead, by name.
+  const allowed = (schema_.fields.find((f) => f.name === 'duration')?.enum ?? [])
+    .map(Number)
+    .filter((n) => Number.isFinite(n) && n > 0);
+  if (allowed.length > 0 && !allowed.includes(input.durationSeconds)) {
+    return NextResponse.json(
+      {
+        error: `${model.displayName} only makes clips of ${allowed.sort((a, b) => a - b).join(', ')} seconds, not ${input.durationSeconds}.`,
+      },
       { status: 400 },
     );
   }

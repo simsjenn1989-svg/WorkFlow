@@ -624,3 +624,45 @@ a value that model does not offer.
 
 Also fixed alongside: `original` framing was enlarging a 2000x1500 render to 2560x1920 — a
 third more bytes over the wire for detail that was never there.
+
+### Model bake-off: nine models, one frame, $0.71
+
+Nine image-to-video models run against the same cropped 9:16 frame and the same motion
+prompt, to rank them on what this shop actually needs: **does the printed graphic survive**.
+
+**Durations are not free numbers.** Three of the nine failed outright with
+`Request parameters are invalid` — Veo 3.1 accepts a `duration` of only **4, 6 or 8**, and 5
+was being sent. The Seconds control was a free 1–60 number box; most models publish an exact
+enum (Veo `[4,6,8]`, Seedance 2.5 `[4,5,...,30]`, Wan 3.0 `[2,3,...,30]`). It is now a select
+built from the model's own list, with a server-side check that names the allowed values
+instead of relaying Atlas's unhelpful message.
+
+**Print integrity, judged from the first and last frames side by side:**
+
+| | Model | 5s | print after 5 seconds |
+|---|---|---|---|
+| ✅ | seedance-v1-pro-fast | $0.009 | square, sharp, barely moves |
+| ✅ | veo3.1-lite | $0.050 | square, crisp |
+| ✅ | veo3.1-fast | $0.080 | square, crisp |
+| ✅ | veo3.1 | $0.200 | square, crisp |
+| ~ | seedance-2.0-fast | $0.072 | slight skew, readable |
+| ~ | seedance-2.0 | $0.090 | slight skew, softening |
+| ❌ | seedance-2.0-mini | $0.045 | rotated and skewed |
+| ❌ | ltx-2.3-fast | $0.030 | rotated ~15°, blurred |
+| ❌ | ltx-2.5-pro | $0.120 | rotated, blurred |
+
+**Price does not predict print integrity.** The $0.009 model held the graphic as well as the
+$0.200 one, and the $0.120 LTX was among the worst.
+
+**Automatic metrics were not enough.** Mean Laplacian in the print region ranked
+seedance-v1-pro-fast at "131% of its starting sharpness", which sounded like degradation and
+was actually the camera pushing in on an undistorted print. Frame drift ranked it mid-table
+because it measured camera movement, not warp. The visual comparison reversed both readings —
+worth remembering before trusting a number over a look.
+
+**Motion character differs more than quality does.** Every Veo model invented the same
+unprompted gesture: the subject grabs the shirt with both hands and tugs it. That is a real
+UGC convention for clothing and may be wanted, but the hands cross the graphic while they do
+it. Seedance v1 Pro Fast kept hands out of frame and simply let her turn and smile. (It is not
+immune — under a different prompt it put a camera in her hands — so the motion prompt matters
+as much as the model.)

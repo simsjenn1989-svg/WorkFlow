@@ -53,6 +53,7 @@ export function VideoStudio({
   const [fields, setFields] = useState<AtlasField[]>([]);
   const [promptRequired, setPromptRequired] = useState(false);
   const [ratioField, setRatioField] = useState<AtlasField | null>(null);
+  const [durations, setDurations] = useState<number[]>([]);
   const [params, setParams] = useState<Record<string, unknown>>({});
 
   const [status, setStatus] = useState<'idle' | 'starting' | 'running' | 'done' | 'failed'>('idle');
@@ -84,8 +85,27 @@ export function VideoStudio({
         const response = await fetch(`/api/models/fields?model=${encodeURIComponent(modelId)}`);
         const body = (await response.json()) as { fields?: AtlasField[]; required?: string[] };
         if (cancelled) return;
-        const offered = (body.fields ?? []).filter((f) => !APP_CONTROLLED.has(f.name));
+        const all = body.fields ?? [];
+        const offered = all.filter((f) => !APP_CONTROLLED.has(f.name));
         setFields(offered);
+
+        // Length is not a free number. Most models publish the exact values they take —
+        // Veo 3.1 accepts only 4, 6 or 8, and sending 5 is rejected outright with
+        // "Request parameters are invalid". Offer what the model actually allows.
+        const allowed = (all.find((f) => f.name === 'duration')?.enum ?? [])
+          .map(Number)
+          .filter((n) => Number.isFinite(n) && n > 0)
+          .sort((a, b) => a - b);
+        setDurations(allowed);
+        if (allowed.length > 0) {
+          setDuration((current) =>
+            allowed.includes(current)
+              ? current
+              : allowed.reduce((best, n) =>
+                  Math.abs(n - current) < Math.abs(best - current) ? n : best,
+                ),
+          );
+        }
         setPromptRequired((body.required ?? []).includes('prompt'));
         setRatioField(offered.find((f) => f.name === 'aspect_ratio' || f.name === 'ratio') ?? null);
         setParams(
@@ -98,6 +118,7 @@ export function VideoStudio({
           setFields([]);
           setPromptRequired(false);
           setRatioField(null);
+          setDurations([]);
         }
       }
     })();
@@ -371,15 +392,30 @@ export function VideoStudio({
 
         <label className="block space-y-1 text-zinc-400">
           Seconds
-          <input
-            type="number"
-            aria-label="Seconds"
-            className="field"
-            min={1}
-            max={60}
-            value={duration}
-            onChange={(e) => setDuration(Math.max(1, Math.min(60, Number(e.target.value) || 1)))}
-          />
+          {durations.length > 0 ? (
+            <select
+              aria-label="Seconds"
+              className="field"
+              value={duration}
+              onChange={(e) => setDuration(Number(e.target.value))}
+            >
+              {durations.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="number"
+              aria-label="Seconds"
+              className="field"
+              min={1}
+              max={60}
+              value={duration}
+              onChange={(e) => setDuration(Math.max(1, Math.min(60, Number(e.target.value) || 1)))}
+            />
+          )}
         </label>
 
         {fields.length > 0 ? (

@@ -146,11 +146,25 @@ export async function listCatalogVariants(
   blueprintId: number,
   printProviderId: number,
 ): Promise<CatalogVariant[]> {
+  const key = `${blueprintId}/${printProviderId}`;
+  const hit = catalogue.get(key);
+  if (hit && Date.now() - hit.at < CATALOGUE_TTL_MS) return hit.variants;
+
   const body = await printify<{ variants: CatalogVariant[] }>(
     `/catalog/blueprints/${blueprintId}/print_providers/${printProviderId}/variants.json`,
   );
-  return body.variants ?? [];
+  const variants = body.variants ?? [];
+  catalogue.set(key, { at: Date.now(), variants });
+  return variants;
 }
+
+/**
+ * Cached because every push needs the full variant list and a blueprint's catalogue does not
+ * move during a batch. Nearly four hundred records for this blueprint, so fetching it once per
+ * design in a run of twenty would be twenty pointless round trips.
+ */
+const catalogue = new Map<string, { at: number; variants: CatalogVariant[] }>();
+const CATALOGUE_TTL_MS = 10 * 60 * 1000;
 
 /** The largest print area across a set of variants, which is what art should be sized for. */
 export function largestPlaceholder(
@@ -197,6 +211,37 @@ export async function uploadImageByContents(
     method: 'POST',
     body: JSON.stringify({ file_name: fileName, contents: bytes.toString('base64') }),
   });
+}
+
+/** A product as the shop lists it, reduced to what reading a house style needs. */
+export type ShopProduct = {
+  id: string;
+  title: string;
+  description: string;
+  tags: string[];
+  visible: boolean;
+  blueprint_id: number;
+  variants: { id: number; is_enabled: boolean }[];
+  print_areas: {
+    placeholders: { position: string; images: { id: string }[] }[];
+  }[];
+};
+
+/**
+ * The shop's own products, newest first.
+ *
+ * Read so the app can learn how this shop writes rather than being told. Printify pages at
+ * 50; one page is far more than a style needs.
+ */
+export async function listShopProducts(shopId: string, limit = 20): Promise<ShopProduct[]> {
+  const body = await printify<{ data: ShopProduct[] }>(
+    `/shops/${shopId}/products.json?limit=${Math.min(50, Math.max(1, limit))}`,
+  );
+  return body.data ?? [];
+}
+
+export async function getShopProduct(shopId: string, productId: string): Promise<ShopProduct> {
+  return printify<ShopProduct>(`/shops/${shopId}/products/${productId}.json`);
 }
 
 /**

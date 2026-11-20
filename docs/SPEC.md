@@ -360,8 +360,16 @@ presets.
 
 **Phase 6 — UGC video.** Shot library, image-to-video, cost confirmation, 9:16 output.
 
-**Phase 7 — polish.** Batch mode across designs × mockups × colorways, search, duplicate
-detection, more product types.
+**Phase 7 — listing polish.** *Built.* The house style is derived by reading the shop's own
+listings rather than written down: shared title suffix, the tags every listing carries, and
+the fixed description blocks, each kept only where most listings agree. The model writes the
+hook, the description of the design, where to wear it, the title phrases and the design's own
+tags; everything else is assembled in code, so Etsy's 140-character title and 13 tags of at
+most 20 characters are enforced rather than requested. Copy is applied to the draft's title,
+tags and description and nothing else.
+
+**Phase 8 — batch and breadth.** Batch mode across designs × mockups × colorways, search,
+duplicate detection, more product types.
 
 ---
 

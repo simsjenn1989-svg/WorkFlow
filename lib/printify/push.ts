@@ -3,6 +3,8 @@ import { BUCKET, db, signedUrl } from '@/lib/supabase';
 import { normaliseLabel, type Artwork } from '@/lib/artworks';
 import {
   createProduct,
+  getShopProduct,
+  listCatalogVariants,
   productUrl,
   updateProduct,
   uploadImageByUrl,
@@ -87,7 +89,30 @@ export async function pushDesign(input: PushInput): Promise<PushResult> {
     );
   }
 
-  const variantIds = preset.variants.map((v) => v.variantId);
+  /**
+   * Every variant the PRODUCT has, not just the ones being sold.
+   *
+   * Measured the hard way, twice. Creating a product with only the seven enabled variants
+   * listed in `print_areas[].variant_ids` is accepted. Updating that same product with the
+   * same seven is rejected:
+   *
+   *   400 Variants do not match selected blueprint and print provider. Please make sure that
+   *       all product variants are present in the `print_areas.*.variant_ids` field
+   *
+   * So a push worked and a re-push failed, which is the kind of bug that only appears the
+   * second time. Sending the provider's whole catalogue was the obvious fix and it failed
+   * too: the catalogue for blueprint 706 / provider 99 holds 378 variants, while the product
+   * Printify built from it holds 509 — the extra 131 belong to the blueprint's other print
+   * providers. What the field wants is the product's own set.
+   *
+   * On create there is no product to read yet, and the catalogue list is accepted; Printify
+   * expands it to the full set itself. On update the product is read back and its own
+   * variant ids are used, which is also what the shop's hand-built listings contain.
+   */
+  const variantIds = input.existingProductId
+    ? (await getShopProduct(preset.shop_id, input.existingProductId)).variants.map((v) => v.id)
+    : (await listCatalogVariants(preset.blueprint_id, preset.print_provider_id)).map((v) => v.id);
+
   const product: CreateProductInput = {
     title: input.title,
     description: input.description,

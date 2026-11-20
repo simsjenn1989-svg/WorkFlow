@@ -1,12 +1,16 @@
 import { isConfigured } from '@/lib/supabase';
 import { boardData } from '@/lib/data';
-import { isPrintifyConfigured } from '@/lib/printify/client';
+import { isPrintifyConfigured, listShops } from '@/lib/printify/client';
 import { listPresets } from '@/lib/printify/presets';
 import { draftedDesignIds, listDrafts } from '@/lib/printify/data';
+import { listStyles } from '@/lib/listings/style';
+import { listListings } from '@/lib/listings/data';
 import { isAtlasConfigured } from '@/lib/atlas';
+import { anthropicModels, DEFAULT_ATLAS_MODEL, type CopyModel } from '@/lib/copy/generate';
 import { SetupNotice } from '@/app/setup/SetupNotice';
 import { PresetEditor } from './PresetEditor';
 import { PushRunner } from './PushRunner';
+import { StylePanel } from './StylePanel';
 import { DraftList } from './DraftList';
 
 export const dynamic = 'force-dynamic';
@@ -29,12 +33,26 @@ export default async function PrintifyPage() {
     );
   }
 
-  const [board, presets, drafts, drafted] = await Promise.all([
+  const [board, presets, drafts, drafted, styles, listings, shops] = await Promise.all([
     boardData(),
     listPresets(),
     listDrafts(),
     draftedDesignIds(),
+    listStyles(),
+    listListings(),
+    // The shop list is only needed to name shops in the style panel; a Printify hiccup
+    // should not take the whole screen down with it.
+    listShops().catch(() => []),
   ]);
+
+  // Same list the pin studio offers: Atlas writes by default, Claude joins when its key is set.
+  const copyModels: CopyModel[] = isAtlasConfigured()
+    ? [
+        { id: DEFAULT_ATLAS_MODEL, label: 'DeepSeek V4.1 Flash — fast, reliable JSON', provider: 'atlas' },
+        { id: 'zai-org/glm-5.3-flash', label: 'GLM 5.3 Flash', provider: 'atlas' },
+        ...anthropicModels(),
+      ]
+    : anthropicModels();
 
   const designs = Object.values(board)
     .flat()
@@ -67,7 +85,12 @@ export default async function PrintifyPage() {
         </p>
       )}
 
-      <DraftList drafts={drafts} />
+      <StylePanel
+        styles={styles}
+        shops={shops.map((shop) => ({ id: String(shop.id), title: shop.title }))}
+      />
+
+      <DraftList drafts={drafts} listings={listings} models={copyModels} styles={styles} />
     </div>
   );
 }

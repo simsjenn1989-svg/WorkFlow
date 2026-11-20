@@ -408,3 +408,85 @@ draft was deleted afterwards.
 `typedRoutes` kept rejecting `/printify` as a route long after the page existed and
 `.next/types/routes.d.ts` listed it. The route types were fine; `tsconfig.tsbuildinfo` was
 stale. Deleting it fixed it. Worth trying before believing a route-type error.
+
+## Phase 7 — writing the listing
+
+### The style is read, not written
+
+The shop's live listings turned out to be a template rather than a vibe. Across 9 of 10
+Comfort Colors listings in the TikTok shop:
+
+- **Title** — 107 to 120 characters, four comma-separated keyword phrases, the last one always
+  `Oversized Comfort Colors Gift`.
+- **Tags** — exactly 13: about seven specific to the design, then a fixed tail of
+  `Comfort Colors, Oversized Tee, Unisex, Gift for Her, Gift for Him, T-shirts`.
+- **Description** — three short written paragraphs, then three blocks that are byte-identical
+  in every listing: *Why it slaps*, *Care (yes, even chaos does laundry)*, and a size chart.
+
+So `deriveStyle` reads the shop and keeps what most listings agree on: the shared title
+suffix (60% agreement), tags carried by nearly every listing (80%), and blocks found under
+the same heading in most of them. Run against the real shop it recovered all of it — the
+suffix in 15 of 19, all six tail tags in the right order, all three blocks in 19 of 19.
+
+The one piece of actual inference is the conditional line. "Printed on the front and back"
+appears in every two-sided listing and in none of the one-sided ones, so it is stored with
+`requires: 'both-sides'` and dropped when the product only prints on the front. It worked
+from a sample of 2 two-sided listings against 17 one-sided.
+
+`parseDescription` round-trips a real description byte-for-byte, which is the only reason to
+trust what it extracted.
+
+### The model writes less than you would think
+
+It is asked for five things: a hook, what the design is, where to wear it, three title
+phrases and seven tags. Everything else — fabric, care, measurements, the title suffix, the
+six tail tags, the HTML — is assembled by `composeListing` from the stored style.
+
+That split is deliberate. A model asked to reproduce a size chart will eventually produce a
+wrong one, and a wrong measurement is a return rather than a typo.
+
+Limits are enforced in code, not in the prompt: Etsy's 140-character title and 13 tags of at
+most 20 characters each. Asking a model to respect those mostly works, and "mostly" is how a
+listing gets rejected at publish time. Over-long tags are dropped rather than truncated,
+because a truncated search tag matches nothing. Anything the limits forced is reported in the
+editor instead of applied quietly.
+
+Measured on the real shop with DeepSeek V4.1 Flash: 8 to 27 seconds, output indistinguishable
+from the hand-written listings beside it, no adjustments needed.
+
+### `variant_ids` on update — the bug that only shows up the second time
+
+Creating a product with only the seven enabled variants listed in `print_areas[].variant_ids`
+is accepted. Updating that same product with the same seven is rejected:
+
+```
+400 Variants do not match selected blueprint and print provider. Please make sure that all
+    product variants are present in the `print_areas.*.variant_ids` field
+```
+
+So the first push worked and the re-push failed. Sending the provider's whole catalogue was
+the obvious fix and it failed too: the catalogue for blueprint 706 / provider 99 holds **378**
+variants, while the product Printify builds from it holds **509** — the extra 131 belong to
+the blueprint's *other* print providers. The field wants the product's own set.
+
+So: on create, send the catalogue list and let Printify expand it; on update, read the
+product back and send its own `variants[].id`. The shop's hand-built listings contain all 509
+in that field, which was the clue sitting in plain sight from the start.
+
+The catalogue call is cached for ten minutes, since a run of twenty designs otherwise fetches
+the same 378 records twenty times.
+
+### Applying copy does not touch anything else
+
+`/api/listings/apply` sends title, description and tags. It does not send `visible`, so a
+product that has since been published by hand is not yanked back out of the shop by a copy
+edit, and it does not send print areas, so it cannot hit the bug above. There is still no
+call to Printify's publish endpoint anywhere in the app.
+
+### Shared model plumbing
+
+`callAtlas` and `callAnthropic` moved to `lib/copy/models.ts` when listing copy became a
+second caller. The gotchas they carry — no `temperature` for Claude 5.5, `effort: 'low'`
+because thinking comes out of `max_tokens`, a 3000-token budget with one retry at 6000 —
+now exist once rather than twice. `lib/copy/generate.ts` went from about 160 lines to 54, and
+the pin copy panel was re-tested afterwards.

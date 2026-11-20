@@ -81,14 +81,24 @@ export type Orphan = { path: string; bytes: number };
  */
 export async function findOrphans(): Promise<Orphan[]> {
   const referenced = new Set<string>();
+  /**
+   * Every path column in the database, checked against `information_schema` rather than
+   * remembered. A column missing from this list is a file deleted while something still
+   * points at it, which is the one way this function can do real damage —
+   * `printify_uploads.source_path` was missing from the first version.
+   *
+   *   select table_name, column_name from information_schema.columns
+   *   where table_schema = 'public' and column_name like '%path%';
+   */
   const columns: [string, string[]][] = [
     ['design_artworks', ['image_path', 'print_ready_path']],
     ['design_variants', ['image_path']],
-    ['renders', ['output_path']],
-    ['pins', ['output_path']],
-    ['videos', ['output_path', 'source_path']],
-    ['mockup_templates', ['source_path']],
     ['fonts', ['file_path']],
+    ['mockup_templates', ['source_path']],
+    ['pins', ['output_path']],
+    ['printify_uploads', ['source_path']],
+    ['renders', ['output_path']],
+    ['videos', ['output_path', 'source_path']],
   ];
 
   for (const [table, cols] of columns) {

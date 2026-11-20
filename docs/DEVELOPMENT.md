@@ -766,3 +766,28 @@ Not lost money, and worse than a failed row in one respect: a failed row is visi
 duplicate draft is not. `pushDesign` now takes an `onProductCreated` callback invoked the
 instant Printify returns an id, and the catch deliberately leaves that id in place so a retry
 updates the draft rather than making another.
+
+### Sweeping the orphans
+
+40 unreferenced files, 46.04 MB, removed. The bucket went from 59 files / 84.3 MB to **18
+files / 30.4 MB** — the 15 mockup photos, 2 live design variants and 1 font, which is
+everything that should be there.
+
+Checking the checker first was the part that mattered. `findOrphans` compares the bucket
+against a hardcoded list of path columns, so a column missing from that list means deleting a
+file something still points at. The list was verified against the database rather than
+memory:
+
+```sql
+select table_name, column_name from information_schema.columns
+where table_schema = 'public' and column_name like '%path%';
+```
+
+Ten columns across eight tables — and `printify_uploads.source_path` was **missing** from the
+first version. Nothing would have been lost in this particular sweep (the same files are
+reachable through `design_artworks.print_ready_path`), but the gap would have mattered the
+moment those two diverged. The query is now in a comment above the list.
+
+Also worth recording: sampling rows to discover columns does not work, because a table with
+no rows returns no column names, and an empty table is exactly the kind that gets forgotten.
+The schema has to be asked, not inferred.

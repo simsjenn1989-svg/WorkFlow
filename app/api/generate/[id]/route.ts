@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { BUCKET, db } from '@/lib/supabase';
-import { downloadOutput, getPrediction, isAtlasConfigured } from '@/lib/atlas';
+import { chargedCents, downloadOutput, getPrediction, isAtlasConfigured } from '@/lib/atlas';
 
 export const runtime = 'nodejs';
 
@@ -16,6 +16,7 @@ type JobRow = {
   id: string;
   status: string;
   cost_cents: number;
+  created_at: string;
   payload: {
     designId: string;
     predictionId: string;
@@ -42,7 +43,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
   const { data: jobs } = await db()
     .from('jobs')
-    .select('id,status,cost_cents,payload')
+    .select('id,status,cost_cents,created_at,payload')
     .eq('kind', 'atlas.generate')
     .filter('payload->>predictionId', 'eq', predictionId)
     .limit(1);
@@ -110,25 +111,54 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         cost_cents: Math.round(job.cost_cents / Math.max(1, prediction.outputs.length)),
       });
     } catch (error) {
+      // Collecting a finished generation is not the same as the generation failing.
+      //
+      // This happened for real: Atlas completed two images and charged for them, one
+      // download came back 520, and the job was marked failed — losing work that existed
+      // and had been paid for. Atlas keeps the outputs, so polling again collects them.
+      //
+      // The job therefore stays running and the client retries, until GIVE_UP_MS says
+      // something is genuinely wrong rather than merely flaky.
+      const message = (error as Error).message;
+      const age = Date.now() - new Date(job.created_at).getTime();
+
+      if (age < GIVE_UP_MS) {
+        await db().from('jobs').update({ error: message }).eq('id', job.id);
+        return NextResponse.json({ status: 'processing', designId, note: message });
+      }
+
       await db()
         .from('jobs')
-        .update({ status: 'failed', error: (error as Error).message, finished_at: new Date().toISOString() })
+        .update({ status: 'failed', error: message, finished_at: new Date().toISOString() })
         .eq('id', job.id);
-      return NextResponse.json({ status: 'failed', designId, error: (error as Error).message });
+      return NextResponse.json({ status: 'failed', designId, error: message });
     }
   }
 
-  // The ledger is written once, together with marking the job done.
+  // What Atlas actually charged, not what was estimated before it ran.
+  //
+  // The estimate is the listed base price times the image count, and size and quality tier
+  // multiply it by a factor the catalogue does not publish: two 2160x3840 images at quality
+  // `high` were quoted at $0.014 and charged $0.16168. Recording the estimate meant the
+  // monthly total was eleven times under, which makes the ceiling meaningless. The real
+  // figure arrives on the finished prediction, so it is used whenever it is there.
+  const actual = chargedCents(prediction) ?? job.cost_cents;
+
   await db().from('cost_ledger').insert({
     design_id: designId,
     job_id: job.id,
     provider: 'atlascloud',
     model: job.payload.model,
-    amount_cents: job.cost_cents,
+    amount_cents: actual,
   });
   await db()
     .from('jobs')
-    .update({ status: 'done', finished_at: new Date().toISOString() })
+    .update({
+      status: 'done',
+      cost_cents: actual,
+      error: null,
+      finished_at: new Date().toISOString(),
+    })
     .eq('id', job.id);
 
   return NextResponse.json({ status: 'completed', designId, variants: await variantsFor(designId) });
@@ -151,3 +181,6 @@ async function variantsFor(designId: string) {
     }),
   );
 }
+
+/** Atlas finishes images in seconds; well past that, a stuck collection is a real failure. */
+const GIVE_UP_MS = 15 * 60 * 1000;

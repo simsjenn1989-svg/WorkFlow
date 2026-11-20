@@ -65,6 +65,20 @@ export function GenerateForm({
   const estimateCents = Math.round((model?.basePriceUsd ?? 0) * count * 100);
   const overBudget = estimateCents > remainingCents;
 
+  /**
+   * Settings known to push the real charge well above the listed base price.
+   *
+   * Not a formula — Atlas publishes no multiplier — just the two knobs that were measured
+   * turning $0.014 into $0.16168: a quality tier above the default, and a size with a big
+   * pixel count.
+   */
+  const raisesPrice =
+    ['high', 'xhigh', 'max', 'ultra'].includes(String(params.quality ?? '').toLowerCase()) ||
+    (() => {
+      const match = /(\d{3,5})\s*[x×]\s*(\d{3,5})/.exec(String(params.size ?? ''));
+      return match ? Number(match[1]) * Number(match[2]) > 2_000_000 : false;
+    })();
+
   // Load the chosen model's own fields and seed the parameter defaults.
   useEffect(() => {
     let cancelled = false;
@@ -364,11 +378,28 @@ export function GenerateForm({
         <section className="space-y-2 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
           <div className="flex items-baseline justify-between text-sm">
             <span className="text-zinc-400">Estimate</span>
-            <span className="font-semibold">${(estimateCents / 100).toFixed(2)}</span>
+            <span className="font-semibold">
+              from ${(estimateCents / 100).toFixed(2)}
+            </span>
           </div>
+          {/*
+            "From", not a price. Measured on a real run: two 2160x3840 images at quality
+            `high` were quoted at $0.014 from the listed base price and charged $0.16168 —
+            eleven times more. Size and quality multiply the base by a factor Atlas does not
+            publish, so the only honest figure arrives with the finished prediction, and
+            that is what the ledger records.
+          */}
           <p className="text-[11px] leading-relaxed text-zinc-600">
-            Atlas&rsquo;s listed base price for {count} image{count === 1 ? '' : 's'}. Quality tiers
-            above the default cost more than this.
+            Atlas&rsquo;s listed base price for {count} image{count === 1 ? '' : 's'} — a floor,
+            not a quote.{' '}
+            {raisesPrice ? (
+              <span className="text-amber-500/90">
+                A large size or a high quality tier can multiply it several times over. The real
+                charge is recorded against your month once the images arrive.
+              </span>
+            ) : (
+              <>The real charge is recorded against your month once the images arrive.</>
+            )}
           </p>
           {overBudget ? (
             <p className="text-xs text-rose-400">

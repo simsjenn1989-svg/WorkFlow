@@ -49,7 +49,27 @@ export type Prediction = {
   status: PredictionStatus;
   outputs: string[];
   error: string;
+  /**
+   * What Atlas actually charged, in dollars, as a string.
+   *
+   * Only present once the work is done, and worth far more than the estimate made before it
+   * started. Measured on a real generation: two 2160x3840 images at quality `high` from
+   * gpt-image-2.6-flare were quoted at $0.014 from the listed base price and charged
+   * **$0.16168** — eleven times more. Size and quality tier multiply the base price by a
+   * factor nothing in the catalogue publishes, so the only honest number is this one.
+   */
+  price?: string;
+  /** "charged" once the money has actually been taken. */
+  charge_status?: string;
 };
+
+/** What Atlas charged for a finished prediction, in cents, or null if it has not said. */
+export function chargedCents(prediction: Prediction): number | null {
+  const price = Number(prediction.price);
+  if (!Number.isFinite(price) || price < 0) return null;
+  // Rounded up: a sub-cent charge that rounds to zero would never move the monthly ceiling.
+  return Math.ceil(price * 100);
+}
 
 function key(): string {
   const value = process.env.ATLAS_CLOUD_API_KEY;

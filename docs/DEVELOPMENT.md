@@ -696,3 +696,32 @@ and the app has no business deleting it silently.
 `findOrphans` sweeps the bucket against every path column in every table, for cleaning up what
 was already lost. It returns the list rather than deleting it: "no row points at this" is a
 strong claim, and acting on it should be a decision.
+
+### The estimate was eleven times under
+
+Reported as a 520 error on the Generate screen. Two problems behind it, and the error was the
+smaller one.
+
+**The charge.** Two 2160x3840 images at quality `high` from `gpt-image-2.6-flare` were quoted
+at **$0.014** — listed base price times image count — and Atlas charged **$0.16168**. Size and
+quality tier multiply the base by a factor the catalogue does not publish, so the estimate was
+not slightly optimistic, it was wrong by 11x, and the monthly ceiling it guards was wrong by
+the same amount.
+
+The finished prediction carries the truth: `price` and `charge_status` arrive on the record
+once the work completes. The ledger now records that figure and falls back to the estimate
+only when Atlas has not said. The Generate screen says "from $0.01" rather than "$0.01", and
+flags a large size or a high quality tier as something that multiplies it.
+
+The estimate still guards the budget before the run, because something has to, but it is
+presented as a floor.
+
+**The error.** Atlas completed the generation, produced both images and charged for them; one
+download came back 520 and the job was marked permanently failed. Work that existed and had
+been paid for was thrown away, and polling again collected it in full — all three variants,
+2160x3840, transparency intact.
+
+Same mistake as the video poll earlier in this document: a thrown collection is not a failed
+generation. The job now stays running on a thrown download and the client retries, with a
+fifteen minute window before it counts as real. Worth noticing that this class of bug has now
+appeared three times in three different pollers, each written separately.

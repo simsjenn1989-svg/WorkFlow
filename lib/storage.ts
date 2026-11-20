@@ -101,6 +101,14 @@ export async function findOrphans(): Promise<Orphan[]> {
     ['videos', ['output_path', 'source_path']],
   ];
 
+  // Reference images are inputs, recorded on the job rather than in a path column, so the
+  // column sweep cannot see them. Without this a reference would be deleted as an orphan
+  // while a retry still needed it.
+  const { data: jobs } = await db().from('jobs').select('payload');
+  for (const row of (jobs ?? []) as { payload: { referencePath?: string } | null }[]) {
+    if (row.payload?.referencePath) referenced.add(row.payload.referencePath);
+  }
+
   for (const [table, cols] of columns) {
     const { data, error } = await db().from(table).select(cols.join(','));
     if (error) continue;

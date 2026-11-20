@@ -6,6 +6,7 @@ import type { AtlasField, AtlasModel } from '@/lib/atlas';
 import type { Prompt } from '@/lib/queries';
 import type { Collection, DesignCard } from '@/lib/types';
 import { COMMON_LABELS, PRIMARY_LABEL } from '@/lib/artworks';
+import { ReferencePanel, type Reference } from './ReferencePanel';
 import { fillSlots, slotsIn } from '@/lib/queries';
 
 type Phase = 'idle' | 'starting' | 'generating' | 'done' | 'error';
@@ -15,17 +16,21 @@ const PROMINENT = new Set(['size', 'quality', 'background', 'output_format', 'as
 
 export function GenerateForm({
   models,
+  editModels,
   prompts,
   collections,
   designs,
   defaultModel,
+  defaultEditModel,
   remainingCents,
 }: {
   models: AtlasModel[];
+  editModels: AtlasModel[];
   prompts: Prompt[];
   collections: Collection[];
   designs: DesignCard[];
   defaultModel: string;
+  defaultEditModel: string;
   remainingCents: number;
 }) {
   const router = useRouter();
@@ -48,6 +53,24 @@ export function GenerateForm({
   const [phase, setPhase] = useState<Phase>('idle');
   const [message, setMessage] = useState('');
   const [restored, setRestored] = useState<string | null>(null);
+  const [reference, setReference] = useState<Reference | null>(null);
+
+  /**
+   * Attaching a reference swaps the whole model list.
+   *
+   * An edit model rejects a request with no image and a text-to-image model ignores one, so
+   * these are not interchangeable and the selected model has to move with the mode.
+   */
+  const available = reference ? editModels : models;
+
+  // Keep the selection valid across a mode change: the model chosen for text-to-image does
+  // not exist in the edit list, and leaving it selected would submit a model that cannot
+  // read the reference.
+  useEffect(() => {
+    const wanted = reference ? defaultEditModel : defaultModel;
+    if (!available.some((m) => m.model === modelId)) setModelId(wanted);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reference]);
 
   /**
    * Prefill from a failed generation's Retry link.
@@ -77,17 +100,17 @@ export function GenerateForm({
     window.history.replaceState(null, '', '/generate');
   }, [models, designs]);
 
-  const model = useMemo(() => models.find((m) => m.model === modelId), [models, modelId]);
+  const model = useMemo(() => available.find((m) => m.model === modelId), [available, modelId]);
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
     const matched = term
-      ? models.filter(
+      ? available.filter(
           (m) => m.displayName.toLowerCase().includes(term) || m.model.toLowerCase().includes(term),
         )
-      : models;
+      : available;
     // Always keep the selected model selectable, even when it is filtered out.
     return model && !matched.some((m) => m.model === model.model) ? [model, ...matched] : matched;
-  }, [models, search, model]);
+  }, [available, search, model]);
 
   const slots = useMemo(() => slotsIn(body), [body]);
   const finalPrompt = useMemo(() => fillSlots(body, slotValues), [body, slotValues]);
@@ -173,6 +196,7 @@ export function GenerateForm({
           promptId: promptId || null,
           label,
           designId: targetDesignId || null,
+          referencePath: reference?.path ?? null,
           tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
         }),
       });
@@ -221,6 +245,17 @@ export function GenerateForm({
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
       <div className="space-y-4">
+        <ReferencePanel
+          reference={reference}
+          onReference={setReference}
+          onPrompt={(prompt) => {
+            setBody(prompt);
+            // A written brief replaces any saved prompt that was loaded, so the two cannot
+            // silently merge into something neither of them says.
+            setPromptId('');
+          }}
+        />
+
         <section className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
           <div className="flex items-baseline justify-between">
             <h2 className="text-sm font-semibold">Prompt</h2>
@@ -278,7 +313,7 @@ export function GenerateForm({
           <h2 className="text-sm font-semibold">Model</h2>
           <input
             className="field"
-            placeholder={`Search ${models.length} text-to-image models…`}
+            placeholder={`Search ${available.length} ${reference ? 'image-to-image' : 'text-to-image'} models…`}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />

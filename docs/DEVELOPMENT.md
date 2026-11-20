@@ -843,3 +843,49 @@ Retry reopens the Generate screen prefilled from the job's stored prompt, model 
 rather than firing a new one. Generating costs money and this app's rule is that nothing paid
 runs without the price being shown and confirmed; a one-click retry would have quietly broken
 that. Storing the prompt in the job payload is what makes an exact retry possible at all.
+
+### Redrawing a reference in a named style
+
+Give it a design you like, pick a style, get the same subject reinterpreted. Atlas calls
+these image-to-image or `/edit` models, on the same `/generateImage` endpoint as
+text-to-image, with the reference passed as `images: [url]` — a URL, so the stored file is
+handed over signed rather than uploaded twice.
+
+**Only 8 of the 84 can output a transparent background.** Checked by reading all 84 schemas
+for a `background` enum containing `transparent`. That is not a preference for a garment
+print: art with a baked background prints as a rectangle, and the other 75 would need the
+background cutting afterwards. The default is `openai/gpt-image-2.6-flare/edit` — $0.008, one
+of the 8, and the same family already used for text-to-image, so a redraw looks like it came
+from the same shop.
+
+Attaching a reference swaps the entire model list, because the two kinds are not
+interchangeable: an edit model rejects a request with no image and a text-to-image model
+ignores one. The selected model moves with the mode rather than being left pointing at
+something that cannot read the reference.
+
+**A style name is a weak instruction.** "Preppy" could mean anything to an image model, so
+each style in the dropdown carries a concrete description of its visual language — palette,
+line quality, motifs, era — and that is what reaches the model. The dropdown name is only
+what the person reads.
+
+Three things the brief has to say, learned from what this shop prints:
+
+- **Redraw, not edit.** Handed a picture and a style name, an edit model tends to tint the
+  original. The wording asks for a new illustration that borrows subject and composition.
+- **Transparent background, no scene**, for the same reason the model has to support it.
+- **Lettering is opt-in.** The reference may carry a word that belongs to the design, or one
+  that should be dropped so new copy can take its place.
+
+Verified on a real reference: a vintage-illustration Santa booping a reindeer's nose, redrawn
+preppy, came back with the same subject, pose, composition and the word "Boop" — in hot pink,
+green gingham, smiley faces and bows. A reinterpretation rather than a filtered copy, with
+the alpha channel intact, for one cent.
+
+One gap worth knowing: these return 1024x1024 by default, below the 4494px print width, so
+the print-ready step upscales. Setting `size` to 2048x2048 in the model's own settings avoids
+that.
+
+References are stored under `references/` rather than `designs/`, so nothing that walks the
+designs folder mistakes an input for a design. They are recorded only in the job payload, not
+in a path column, so `findOrphans` reads job payloads too — without that the sweep would
+delete a reference a retry still needed.

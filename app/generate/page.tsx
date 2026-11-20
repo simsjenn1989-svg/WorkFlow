@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { isConfigured } from '@/lib/supabase';
-import { isAtlasConfigured, listImageModels } from '@/lib/atlas';
+import { isAtlasConfigured, listEditModels, listImageModels, PREFERRED_EDIT_MODEL } from '@/lib/atlas';
 import { budgetState, formatUsd } from '@/lib/budget';
 import { boardData, listCollections } from '@/lib/data';
 import { listPrompts } from '@/lib/queries';
@@ -31,8 +31,11 @@ export default async function GeneratePage() {
     );
   }
 
-  const [models, prompts, collections, budget, board] = await Promise.all([
+  const [models, editModels, prompts, collections, budget, board] = await Promise.all([
     listImageModels(),
+    // A second list, because an edit model rejects a request with no image and a
+    // text-to-image model ignores one. The form swaps between them.
+    listEditModels(),
     listPrompts(),
     listCollections(),
     budgetState(),
@@ -48,6 +51,9 @@ export default async function GeneratePage() {
   const defaultModel = models.some((m) => m.model === PREFERRED)
     ? PREFERRED
     : (models[0]?.model ?? '');
+  const defaultEditModel = editModels.some((m) => m.model === PREFERRED_EDIT_MODEL)
+    ? PREFERRED_EDIT_MODEL
+    : (editModels[0]?.model ?? '');
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5 px-5 py-6">
@@ -79,6 +85,8 @@ export default async function GeneratePage() {
           collections={collections}
           designs={designs}
           defaultModel={defaultModel}
+          editModels={editModels}
+          defaultEditModel={defaultEditModel}
           remainingCents={budget.remainingCents}
         />
       )}

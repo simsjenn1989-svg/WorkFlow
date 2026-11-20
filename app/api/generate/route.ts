@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { db } from '@/lib/supabase';
+import { db, signedUrl } from '@/lib/supabase';
 import { assertWithinBudget } from '@/lib/budget';
 import { estimateCents, getModel, isAtlasConfigured, startGeneration } from '@/lib/atlas';
 import { normaliseLabel, PRIMARY_LABEL } from '@/lib/artworks';
@@ -27,6 +27,13 @@ const schema = z.object({
   label: z.string().trim().max(40).default(PRIMARY_LABEL),
   /** Generate onto an existing design — how a back print joins a design that has a front. */
   designId: z.string().uuid().nullable().default(null),
+  /**
+   * A stored image to redraw, as a storage path.
+   *
+   * A path rather than a URL: the caller should not be able to point this at an arbitrary
+   * host, and the signed URL handed to Atlas is minted here with a short life.
+   */
+  referencePath: z.string().trim().max(400).nullable().default(null),
 });
 
 /**
@@ -93,8 +100,21 @@ export async function POST(request: Request) {
 
   let predictionId: string;
   try {
+    // A reference turns this into an edit: the same endpoint, with the image alongside the
+    // prompt. Atlas's edit models take `images` as an array of URLs, so the stored file is
+    // handed over signed rather than uploaded again.
+    let reference: string[] | undefined;
+    if (input.referencePath) {
+      const url = await signedUrl(input.referencePath, 3600);
+      if (!url) {
+        return NextResponse.json({ error: 'That reference image could not be read.' }, { status: 400 });
+      }
+      reference = [url];
+    }
+
     const prediction = await startGeneration(model.model, input.prompt, {
       ...input.params,
+      ...(reference ? { images: reference } : {}),
       n: input.count,
     });
     predictionId = prediction.id;
@@ -121,6 +141,7 @@ export async function POST(request: Request) {
       createdDesign,
       prompt: input.prompt,
       params: input.params,
+      referencePath: input.referencePath,
       collectionId: input.collectionId,
       tags: input.tags,
     },

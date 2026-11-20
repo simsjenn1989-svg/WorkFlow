@@ -149,6 +149,34 @@ function byName(a: AtlasModel, b: AtlasModel): number {
   return a.displayName.localeCompare(b.displayName);
 }
 
+/**
+ * Models that redraw an image you give them.
+ *
+ * Kept separate from the text-to-image list because the two cannot be swapped: an edit model
+ * rejects a request with no image, and a text-to-image model ignores one.
+ *
+ * Only 8 of the 84 can output a transparent background, which for a garment print is not a
+ * preference — art with a baked background prints as a rectangle. They are not filtered out
+ * here, because the schema would have to be fetched for all 84 to know, but
+ * `PREFERRED_EDIT_MODEL` is one of the 8 and the screen checks the chosen model's own schema
+ * before letting it run.
+ */
+export async function listEditModels(): Promise<AtlasModel[]> {
+  return (await catalogue())
+    .filter((m) => m.type === 'Image' && (m.categories ?? []).includes('IMAGE-TO-IMAGE') && m.schema)
+    .map(toModel)
+    .sort((a, b) => a.basePriceUsd - b.basePriceUsd || byName(a, b));
+}
+
+/**
+ * The default for redrawing a reference.
+ *
+ * $0.008, outputs a transparent background, and the same family already used for
+ * text-to-image here — so a design redrawn in a new style comes out looking like it came
+ * from the same shop.
+ */
+export const PREFERRED_EDIT_MODEL = 'openai/gpt-image-2.6-flare/edit';
+
 /** Every text-to-image model Atlas currently offers. */
 export async function listImageModels(): Promise<AtlasModel[]> {
   return (await catalogue())

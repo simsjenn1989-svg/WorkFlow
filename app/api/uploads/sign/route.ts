@@ -6,7 +6,7 @@ import { BUCKET, db } from '@/lib/supabase';
 export const runtime = 'nodejs';
 
 const schema = z.object({
-  kind: z.enum(['design', 'mockup', 'pin', 'font']),
+  kind: z.enum(['design', 'mockup', 'pin', 'font', 'reference']),
   ext: z.string().trim().regex(/^[a-z0-9]{1,5}$/i),
 });
 
@@ -31,7 +31,11 @@ export async function POST(request: Request) {
         ? `mockups/${id}/source.${ext}`
         : parsed.data.kind === 'pin'
           ? `pins/${id}.${ext}`
-          : `fonts/${id}.${ext}`;
+          : parsed.data.kind === 'reference'
+            // Its own folder: a reference is an input, not a design, and should not be
+            // mistaken for one by anything that walks `designs/`.
+            ? `references/${id}.${ext}`
+            : `fonts/${id}.${ext}`;
 
   const { data, error } = await db().storage.from(BUCKET).createSignedUploadUrl(path);
   if (error || !data) {

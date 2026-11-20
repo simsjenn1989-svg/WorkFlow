@@ -51,6 +51,7 @@ export function VideoStudio({
   const [duration, setDuration] = useState(5);
   const [prompt, setPrompt] = useState('');
   const [fields, setFields] = useState<AtlasField[]>([]);
+  const [promptRequired, setPromptRequired] = useState(false);
   const [params, setParams] = useState<Record<string, unknown>>({});
 
   const [status, setStatus] = useState<'idle' | 'starting' | 'running' | 'done' | 'failed'>('idle');
@@ -80,17 +81,21 @@ export function VideoStudio({
     (async () => {
       try {
         const response = await fetch(`/api/models/fields?model=${encodeURIComponent(modelId)}`);
-        const body = (await response.json()) as { fields?: AtlasField[] };
+        const body = (await response.json()) as { fields?: AtlasField[]; required?: string[] };
         if (cancelled) return;
         const offered = (body.fields ?? []).filter((f) => !APP_CONTROLLED.has(f.name));
         setFields(offered);
+        setPromptRequired((body.required ?? []).includes('prompt'));
         setParams(
           Object.fromEntries(
             offered.filter((f) => f.default !== undefined).map((f) => [f.name, f.default]),
           ),
         );
       } catch {
-        if (!cancelled) setFields([]);
+        if (!cancelled) {
+          setFields([]);
+          setPromptRequired(false);
+        }
       }
     })();
     return () => {
@@ -164,6 +169,9 @@ export function VideoStudio({
   }
 
   const busy = status === 'starting' || status === 'running';
+  // Measured across 40 of the image-to-video models: 23 insist on a prompt and 17 do not.
+  // Catching it here beats submitting and relaying Atlas's rejection.
+  const missingPrompt = promptRequired && prompt.trim().length === 0;
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
@@ -276,7 +284,14 @@ export function VideoStudio({
         </section>
 
         <section className="space-y-2 rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
-          <h2 className="text-sm font-semibold">Motion</h2>
+          <h2 className="text-sm font-semibold">
+            Motion{' '}
+            <span
+              className={`font-normal ${promptRequired && !prompt.trim() ? 'text-amber-400' : 'text-zinc-600'}`}
+            >
+              {promptRequired ? 'required by this model' : 'optional for this model'}
+            </span>
+          </h2>
           <textarea
             aria-label="Motion prompt"
             className="field h-20 resize-y text-xs"
@@ -422,7 +437,7 @@ export function VideoStudio({
         <button
           className="btn-primary w-full"
           onClick={generate}
-          disabled={busy || !renderId || !modelId || overBudget || unpriced}
+          disabled={busy || !renderId || !modelId || overBudget || unpriced || missingPrompt}
         >
           {status === 'starting'
             ? 'Starting…'
@@ -430,6 +445,13 @@ export function VideoStudio({
               ? 'Generating…'
               : `Make the clip · ${unpriced ? '?' : `$${listedUsd.toFixed(3)}`}`}
         </button>
+
+        {missingPrompt ? (
+          <p className="text-[11px] text-amber-500/90">
+            {model?.displayName} needs a motion prompt. Describe what moves — most models
+            will not run without one.
+          </p>
+        ) : null}
 
         {overBudget ? (
           <p className="text-[11px] text-rose-400">

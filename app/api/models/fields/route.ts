@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getModel, getModelFields } from '@/lib/atlas';
+import { getModel, getModelInput } from '@/lib/atlas';
 
 export const runtime = 'nodejs';
 
@@ -16,9 +16,14 @@ export async function GET(request: Request) {
   if (!model) return NextResponse.json({ error: `Unknown model "${id}".` }, { status: 404 });
 
   try {
+    const input = await getModelInput(model);
     return NextResponse.json({
-      fields: await getModelFields(model),
+      fields: input.fields,
+      // Which inputs the model insists on, so a form can say so before anything is
+      // submitted rather than relaying a rejection afterwards.
+      required: input.required,
       basePriceUsd: model.basePriceUsd,
+      priceUnit: model.priceUnit,
       profile: model.profile,
     });
   } catch (error) {

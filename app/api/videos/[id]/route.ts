@@ -85,7 +85,15 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     await db()
       .from('videos')
-      .update({ status: 'done', output_path: path, finished_at: new Date().toISOString() })
+      // `error` is cleared deliberately. A clip that needed a second poll carries the note
+      // from the first one, and a finished video listed with an error beside it reads as
+      // broken when it is not.
+      .update({
+        status: 'done',
+        output_path: path,
+        error: null,
+        finished_at: new Date().toISOString(),
+      })
       .eq('id', video.id);
 
     await db().from('cost_ledger').insert({
@@ -109,7 +117,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const message = (error as Error).message;
     const age = Date.now() - new Date(video.created_at).getTime();
 
-    if (age < GIVE_UP_MS) {
+    if (!isPermanent(message) && age < GIVE_UP_MS) {
       await db().from('videos').update({ error: message }).eq('id', video.id);
       return NextResponse.json({ status: 'running', warning: message });
     }
@@ -139,4 +147,22 @@ async function step<T>(what: string, run: () => Promise<T>): Promise<T> {
     const detail = [cause?.code, cause?.message].filter(Boolean).join(' ');
     throw new Error(`Failed ${what}: ${(error as Error).message}${detail ? ` (${detail})` : ''}`);
   }
+}
+
+/**
+ * Tell a real refusal from a blip.
+ *
+ * Retrying is right for a dropped connection and wrong for an answer. Atlas replying 4xx is
+ * an answer: the first version treated one as transient and a clip that Atlas had definitely
+ * given up on sat at "running" for fifteen minutes, showing nothing, while the screen said it
+ * would appear when it was done.
+ *
+ * `ClosedEndpoint` is the one that was actually hit — a model whose endpoint Atlas had taken
+ * out of service, returned while polling a job it had already accepted.
+ */
+function isPermanent(message: string): boolean {
+  return (
+    /\b4\d\d\b/.test(message) ||
+    /ClosedEndpoint|InvalidEndpoint|Unauthorized|Forbidden|not found/i.test(message)
+  );
 }

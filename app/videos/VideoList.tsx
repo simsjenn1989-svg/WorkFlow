@@ -1,15 +1,85 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { formatUsd } from '@/lib/budget';
 import type { VideoCard } from '@/lib/video/data';
 
-/** What has been made, and what it cost. */
+/**
+ * What has been made, what is still coming, and what it cost.
+ *
+ * In-flight clips are listed, which they were not at first — and that omission is what made
+ * a job that failed at Atlas look like nothing had happened at all. A row sat at "running"
+ * in the database, this list rendered only finished and failed ones, and nothing re-polled
+ * after the page was left, so a clip could be invisible forever while the screen claimed it
+ * would appear when it was done.
+ *
+ * Now anything in flight shows here and is polled again whenever this page is open, so
+ * leaving and coming back collects it.
+ */
 export function VideoList({ videos }: { videos: VideoCard[] }) {
-  if (videos.length === 0) return null;
+  const router = useRouter();
+  const [checking, setChecking] = useState<string[]>([]);
+  const polled = useRef<Set<string>>(new Set());
 
+  const pending = videos.filter((v) => v.status === 'running' || v.status === 'queued');
   const done = videos.filter((v) => v.status === 'done');
   const failed = videos.filter((v) => v.status === 'failed');
 
+  async function check(id: string) {
+    setChecking((c) => [...c, id]);
+    try {
+      await fetch(`/api/videos/${id}`);
+      router.refresh();
+    } finally {
+      setChecking((c) => c.filter((x) => x !== id));
+    }
+  }
+
+  // Resume anything left in flight, once per row per mount. This is the half that makes
+  // "you can leave this page" true.
+  useEffect(() => {
+    for (const video of pending) {
+      if (polled.current.has(video.id)) continue;
+      polled.current.add(video.id);
+      void check(video.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending.map((v) => v.id).join(',')]);
+
+  if (videos.length === 0) return null;
+
   return (
     <div className="space-y-5">
+      {pending.length > 0 ? (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold text-sky-300">
+            Still going <span className="font-normal text-zinc-500">{pending.length}</span>
+          </h2>
+          <ul className="divide-y divide-zinc-900 rounded-lg border border-zinc-800 text-xs">
+            {pending.map((video) => (
+              <li key={video.id} className="flex flex-wrap items-baseline gap-2 px-3 py-2">
+                <span className="text-zinc-300">{video.design_title}</span>
+                <span className="text-zinc-600">{video.model}</span>
+                <span className="text-zinc-600">{age(video.created_at)}</span>
+                {video.error ? (
+                  <span className="text-amber-500/90" title="Retried automatically">
+                    last try: {video.error}
+                  </span>
+                ) : null}
+                <button
+                  className="ml-auto text-zinc-400 hover:text-zinc-100"
+                  onClick={() => check(video.id)}
+                  disabled={checking.includes(video.id)}
+                >
+                  {checking.includes(video.id) ? 'checking…' : 'check now'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {failed.length > 0 ? (
         <section className="space-y-2">
           <h2 className="text-sm font-semibold text-rose-300">
@@ -20,8 +90,8 @@ export function VideoList({ videos }: { videos: VideoCard[] }) {
               <li key={video.id} className="flex flex-wrap items-baseline gap-2 px-3 py-2">
                 <span className="text-zinc-300">{video.design_title}</span>
                 <span className="text-zinc-600">{video.model}</span>
-                <span className="text-rose-400">{video.error}</span>
-                <span className="ml-auto text-zinc-600">not charged</span>
+                <span className="min-w-0 flex-1 text-rose-400">{video.error}</span>
+                <span className="shrink-0 text-zinc-600">not charged</span>
               </li>
             ))}
           </ul>
@@ -75,4 +145,12 @@ export function VideoList({ videos }: { videos: VideoCard[] }) {
       ) : null}
     </div>
   );
+}
+
+function age(since: string): string {
+  const mins = Math.floor((Date.now() - new Date(since).getTime()) / 60000);
+  if (mins < 1) return 'just started';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  return `${hours} hour${hours === 1 ? '' : 's'} ago`;
 }

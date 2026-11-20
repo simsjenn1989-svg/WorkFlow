@@ -558,3 +558,41 @@ Worth knowing for prompting: the model invents things that were not in the still
 clip a camera appears in her hands by the last second. That is inherent to image-to-video, not
 a fault in the pipeline, and it is the reason the motion prompt is a saved, reusable shot
 rather than something retyped each time.
+
+### A clip that was never collected
+
+Reported from real use: a generation started and "nothing ever landed in the app". Three
+separate defects, found by reading the row rather than guessing.
+
+**What actually went wrong at Atlas.** The job was submitted fine and then polling returned
+`400 InvalidEndpoint.ClosedEndpoint` — Atlas had taken that model's endpoint out of service
+while the job was in flight. Nothing to do with the missing prompt that was suspected; that
+model does not require one, and the endpoint accepted new submissions again minutes later.
+
+**Why the screen showed nothing.** `VideoList` rendered only finished and failed clips, so a
+row sitting at `running` appeared nowhere at all. In-flight clips are now a section of their
+own with their age, the last error if there was one, and a check button.
+
+**Why it never resolved itself.** Nothing re-polled after the page was left. The sidebar even
+said "You can leave this page — the clip appears below when it is done", which was simply
+false: the only poller was the loop in the component that started the job. The list now
+resumes any in-flight row when the page opens, which is what makes that sentence true.
+
+**Why a permanent error waited fifteen minutes.** The retry window added earlier — right for
+a dropped connection — was applied to every thrown poll, including an HTTP 400. A 4xx is an
+answer, not a blip, so it now fails immediately; `isPermanent` also catches `ClosedEndpoint`
+and friends by name.
+
+A smaller one found alongside: a clip that succeeded on a second poll kept the first poll's
+error text, so a perfectly good video was listed with an error beside it. Cleared on success.
+
+### Prompts are required more often than not
+
+Measured across 40 of the image-to-video models: **23 require a prompt, 17 do not.** The
+models differ in ways their names do not hint at — `seedance-2.5` does not need one,
+`seedance-v1-pro-fast` does, and so does `wan-3.0`. Leaving the motion prompt blank is
+therefore fine about 40% of the time and a guaranteed rejection the rest.
+
+The schema's `required` list is now read with its fields, the Motion heading says which kind
+of model is selected, and the button is disabled with an explanation rather than submitting a
+job that will bounce. Checked on the server too, since the form is not the authority.

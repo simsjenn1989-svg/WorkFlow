@@ -3,7 +3,13 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { BUCKET, db, signedUrl } from '@/lib/supabase';
 import { assertWithinBudget } from '@/lib/budget';
-import { estimateVideoCents, getModel, isAtlasConfigured, startVideoGeneration } from '@/lib/atlas';
+import {
+  estimateVideoCents,
+  getModel,
+  getModelInput,
+  isAtlasConfigured,
+  startVideoGeneration,
+} from '@/lib/atlas';
 import { loadSource } from '@/lib/video/source';
 import { prepareFrame } from '@/lib/video/frame';
 
@@ -68,6 +74,16 @@ export async function POST(request: Request) {
     await assertWithinBudget(costCents);
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 402 });
+  }
+
+  // Checked on the server too: the form knows, but the form is not the authority, and
+  // submitting a job Atlas will reject wastes a round trip and leaves a failed row behind.
+  const required = (await getModelInput(model)).required;
+  if (required.includes('prompt') && !input.prompt.trim()) {
+    return NextResponse.json(
+      { error: `${model.displayName} needs a motion prompt — describe what moves.` },
+      { status: 400 },
+    );
   }
 
   try {

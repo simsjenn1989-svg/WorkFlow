@@ -138,6 +138,21 @@ export async function listImageModels(): Promise<AtlasModel[]> {
 }
 
 /**
+ * The clip model to start from.
+ *
+ * Chosen by running nine models against the same frame and the same prompt and comparing the
+ * printed graphic before and after — see docs/DEVELOPMENT.md. It held the print square and
+ * sharp where the two LTX models rotated and blurred it, it kept hands out of the frame where
+ * every Veo model invented a shirt-tugging gesture that crosses the graphic, and it gives 5
+ * seconds against Veo's 4. It is also the cheapest of the nine at $0.009, which is 22 times
+ * less than veo3.1 and was not the reason it won.
+ *
+ * Not a hardcoded list — just a starting point in a catalogue read live, and overridden by
+ * picking anything else.
+ */
+export const DEFAULT_VIDEO_MODEL = 'bytedance/seedance-v1-pro-fast/image-to-video';
+
+/**
  * Every image-to-video model, cheapest first, with the unpriced ones last.
  *
  * Cheapest first rather than alphabetical because this is the paid list and the price is the

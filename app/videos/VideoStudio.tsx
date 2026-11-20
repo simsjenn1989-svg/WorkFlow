@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { RenderCard } from '@/lib/renders';
+import { DEFAULT_VIDEO_MODEL } from '@/lib/atlas';
 import type { AtlasModel, AtlasField } from '@/lib/atlas';
 import type { BudgetState } from '@/lib/budget';
 import type { ShotTemplate } from '@/lib/video/data';
@@ -47,7 +48,10 @@ export function VideoStudio({
   const [offsetX, setOffsetX] = useState(0);
   const [offsetY, setOffsetY] = useState(0);
 
-  const [modelId, setModelId] = useState(models[0]?.model ?? '');
+  // The tested default when it is on offer, else whatever the catalogue leads with.
+  const [modelId, setModelId] = useState(
+    models.find((m) => m.model === DEFAULT_VIDEO_MODEL)?.model ?? models[0]?.model ?? '',
+  );
   const [duration, setDuration] = useState(5);
   const [prompt, setPrompt] = useState('');
   const [fields, setFields] = useState<AtlasField[]>([]);
@@ -381,10 +385,18 @@ export function VideoStudio({
               <option key={m.model} value={m.model}>
                 {m.displayName} — {m.basePriceUsd > 0 ? `$${m.basePriceUsd.toFixed(3)}` : 'price not listed'}
                 {m.priceUnit === 'second' ? '/s' : ''}
+                {m.model === DEFAULT_VIDEO_MODEL ? ' · tested' : ''}
               </option>
             ))}
           </select>
         </label>
+
+        {modelId === DEFAULT_VIDEO_MODEL ? (
+          <p className="text-[11px] leading-relaxed text-zinc-500">
+            Picked by running nine models over the same frame: it kept the print square and
+            sharp, kept hands off the graphic, and gives 5 seconds rather than 4.
+          </p>
+        ) : null}
 
         {model?.profile ? (
           <p className="text-[11px] leading-relaxed text-zinc-600">{model.profile}</p>

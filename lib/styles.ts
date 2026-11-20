@@ -22,9 +22,12 @@ export const STYLES: DesignStyle[] = [
   {
     id: 'preppy',
     name: 'Preppy',
+    // No smiley faces. The classic smiley is both trademarked and claimed in copyright, and
+    // a style description that asks for one puts it on every garment printed through this
+    // style — a legal problem baked into a dropdown. Do not add it back, here or elsewhere.
     description:
       'preppy coastal style: bright saturated pastels, pink, green and sky blue, bold clean outlines, ' +
-      'smiley faces, checkerboard and scallop edges, chunky rounded shapes, cheerful and youthful',
+      'gingham and scallop edges, chunky rounded shapes, cheerful and youthful',
   },
   {
     id: 'retro-70s',

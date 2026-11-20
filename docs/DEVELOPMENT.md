@@ -889,3 +889,24 @@ References are stored under `references/` rather than `designs/`, so nothing tha
 designs folder mistakes an input for a design. They are recorded only in the job payload, not
 in a path column, so `findOrphans` reads job payloads too — without that the sweep would
 delete a reference a retry still needed.
+
+### No smiley faces in a style description
+
+The Preppy style asked for "smiley faces" and the first redraw came back covered in them.
+They were not the model's idea of preppy — the prompt put them there.
+
+Removed, because the classic smiley is both trademarked and claimed in copyright, and a
+motif written into a style description ends up on **every** garment printed through that
+style. That is a legal exposure baked into a dropdown, where it is invisible at the moment
+of use: nothing on the screen says the word, so nobody reviewing a design would know to look
+for it. A comment in `lib/styles.ts` says not to add it back.
+
+The emoji in `lib/listings/prompt.ts` and `lib/copy/system-prompt.ts` were left alone. Those
+are Unicode characters in listing text — the shop's own house style ends a hook with one —
+not a drawn mark on a product, and the two are not the same question.
+
+Worth noting the wider shape of this: 9 of the 13 styles inject specific motifs (mushrooms,
+cactuses, butterflies, speech bubbles). None of the rest carry the same trademark problem,
+but they do mean every design in a style gets the same props whether the subject wants them
+or not, which is a separate conversation about whether style should mean grammar or
+decoration.

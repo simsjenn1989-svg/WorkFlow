@@ -7,12 +7,16 @@ import { db, signedUrl } from './supabase';
  * lives keyed by label. Rendering matches an artwork to a print area by that label, and a
  * design with no back art skips a back area rather than printing the front twice.
  */
+/** A nudge for one design, overriding the placement computed from its trimmed art. */
+export type PlacementOverride = { x: number; y: number; scale: number; angle: number };
+
 export type Artwork = {
   id: string;
   design_id: string;
   label: string;
   image_path: string;
   print_ready_path: string | null;
+  placement: PlacementOverride | null;
   source_model: string | null;
   created_at: string;
   url: string | null;

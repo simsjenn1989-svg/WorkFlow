@@ -791,3 +791,55 @@ moment those two diverged. The query is now in a comment above the list.
 Also worth recording: sampling rows to discover columns does not work, because a table with
 no rows returns no column names, and an empty table is exactly the kind that gets forgotten.
 The schema has to be asked, not inferred.
+
+### Placement: from fixed coordinates to measured geometry
+
+A preset held `x`, `y`, `scale`, `angle` and applied them to every design alike. Because `y`
+is the image CENTRE, that put a short wordmark and a tall badge at visibly different heights
+on the chest — the taller the art, the higher its top edge crept. What stays constant on a
+rail of shirts is the TOP of the print, so that is what is held fixed now and the centre is
+derived from it (`lib/printify/geometry.ts`).
+
+The preset's placement entries therefore stopped being coordinates and became rules:
+`enabled`, `topDropIn`, `maxWidthIn`, `maxHeightIn`. Position is computed per design from the
+trimmed art's real dimensions.
+
+**The print area does not start at the collar.** The first version assumed it did. A real
+draft pushed with a 3in drop came back with the art sitting **6.79in** below the collar on
+Printify's own mockup — so the Comfort Colors 1717 front area begins about **3.79in** down.
+Printify publishes the area's pixel size and nothing about where it sits on the garment, so
+there was no way to know this except to push one and measure it. `collarToAreaTopIn` now
+carries that measurement, `topDropIn` means "below the collar", and asking for 3in on this
+blueprint clamps to 3.79in rather than failing — 3in is simply above where printing can
+start. After the fix the same design measured **3.69in** below the collar, 0.02in off centre.
+
+Two things turned out to be right already and were left alone: the push has always skipped
+print areas with no artwork, and the print-ready step has always trimmed transparent padding
+before upload. What the trim now also buys is that "3 inches below the collar" means the same
+thing for every design, because the measured height is the art's, not its empty margins.
+
+Worth recording about the empty back: a front-only push sends **no** back placeholder, and
+Printify adds one itself with `images: []`. That looked wrong until all six of the shop's
+own front-only products were checked and every one reads `back=0, front=1`. It is how
+Printify represents "nothing printed here", not a second print.
+
+### The generation that was not stuck
+
+Reported as a card reading "No image yet" for 12+ hours. The job had finished 13.7 hours
+earlier and both images were in storage, readable. The thumbnail came only from a *chosen*
+keeper, so a design with two perfectly good unpicked images looked identical to one whose
+generation had failed.
+
+The card now falls back to the newest unpicked variant and says `pick 1 of 2`, and carries
+the job's state when there is one: `generating` with an age, or `failed` with the error and a
+Retry.
+
+A genuine timeout went in alongside, since a job really can hang: ten minutes of Atlas still
+reporting "processing" marks it failed. Nothing is written to the ledger on that path — cost
+is recorded when images are collected — so a job that produced nothing has never counted
+against the month, and retrying cannot double charge.
+
+Retry reopens the Generate screen prefilled from the job's stored prompt, model and count
+rather than firing a new one. Generating costs money and this app's rule is that nothing paid
+runs without the price being shown and confirmed; a one-click retry would have quietly broken
+that. Storing the prompt in the job payload is what makes an exact retry possible at all.

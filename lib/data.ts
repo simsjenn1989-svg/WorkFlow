@@ -10,10 +10,51 @@ export type DesignFilter = {
 };
 
 type ArtworkRow = { label: string; image_path: string; print_ready_path: string | null };
+type VariantRow = { id: string; image_path: string; chosen: boolean; created_at: string };
 type DesignRow = Design & {
   collections: { name: string } | null;
   design_artworks: ArtworkRow[] | null;
+  design_variants: VariantRow[] | null;
 };
+
+type JobRow = {
+  id: string;
+  status: DesignCard['job'] extends null ? never : NonNullable<DesignCard['job']>['status'];
+  error: string | null;
+  payload: {
+    designId?: string;
+    predictionId?: string;
+    model?: string;
+    count?: number;
+    label?: string;
+    prompt?: string;
+  } | null;
+  created_at: string;
+};
+
+/**
+ * The newest generation per design.
+ *
+ * One query for the whole board rather than one per card: `jobs` has no design column, the
+ * design id lives in the payload, so this reads recent jobs and indexes them in memory.
+ */
+async function latestJobs(designIds: string[]): Promise<Map<string, JobRow>> {
+  const byDesign = new Map<string, JobRow>();
+  if (designIds.length === 0) return byDesign;
+
+  const { data } = await db()
+    .from('jobs')
+    .select('id,status,error,payload,created_at')
+    .order('created_at', { ascending: false })
+    .limit(200);
+
+  for (const job of (data ?? []) as JobRow[]) {
+    const designId = job.payload?.designId;
+    if (!designId || byDesign.has(designId)) continue;
+    if (designIds.includes(designId)) byDesign.set(designId, job);
+  }
+  return byDesign;
+}
 
 /**
  * Every design, as cards keyed by stage. One query plus one signed-URL batch, rather than
@@ -24,7 +65,9 @@ export async function boardData(
 ): Promise<Record<Stage, DesignCard[]>> {
   let query = db()
     .from('designs')
-    .select('*, collections(name), design_artworks(label,image_path,print_ready_path)')
+    .select(
+      '*, collections(name), design_artworks(label,image_path,print_ready_path), design_variants(id,image_path,chosen,created_at)',
+    )
     .order('stage_changed_at', { ascending: true });
 
   if (filter.collectionId) query = query.eq('collection_id', filter.collectionId);
@@ -35,7 +78,8 @@ export async function boardData(
   if (error) throw new Error(`Loading the board failed: ${error.message}`);
 
   const rows = (data ?? []) as DesignRow[];
-  const cards = await Promise.all(rows.map(toCard));
+  const jobs = await latestJobs(rows.map((r) => r.id));
+  const cards = await Promise.all(rows.map((row) => toCard(row, jobs.get(row.id) ?? null)));
 
   const byStage = Object.fromEntries(ALL_STAGES.map((s) => [s, [] as DesignCard[]])) as Record<
     Stage,
@@ -45,23 +89,48 @@ export async function boardData(
   return byStage;
 }
 
-async function toCard(row: DesignRow): Promise<DesignCard> {
-  const { collections, design_artworks, ...design } = row;
+async function toCard(row: DesignRow, job: JobRow | null = null): Promise<DesignCard> {
+  const { collections, design_artworks, design_variants, ...design } = row;
   // Front first, so the thumbnail is the primary artwork rather than whichever row came back first.
   const artworks = sortArtworks(design_artworks ?? []);
   const primary = artworks[0];
+
+  // Falling back to a generated variant is the point: an image that exists but has not been
+  // picked should look like a decision waiting, not like nothing happened.
+  const unchosen = (design_variants ?? [])
+    .filter((v) => !v.chosen)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const thumbnail = primary ? artworkPath(primary) : unchosen[0]?.image_path;
+
   return {
     ...design,
     collection_name: collections?.name ?? null,
-    image_url: primary ? await signedUrl(artworkPath(primary)) : null,
+    image_url: thumbnail ? await signedUrl(thumbnail) : null,
     artwork_labels: artworks.map((a) => a.label),
+    unchosen_variants: primary ? 0 : unchosen.length,
+    job: job
+      ? {
+          id: job.id,
+          status: job.status,
+          error: job.error,
+          predictionId: job.payload?.predictionId ?? null,
+          createdAt: job.created_at,
+          // Enough to retry: the Generate screen reopens with these filled in, so the price
+          // is quoted and confirmed again rather than money being spent by one click.
+          retry: job.payload?.prompt
+            ? { prompt: job.payload.prompt, model: job.payload.model ?? '', count: job.payload.count ?? 1, label: job.payload.label ?? 'front' }
+            : null,
+        }
+      : null,
   };
 }
 
 export async function getDesign(id: string): Promise<DesignCard | null> {
   const { data, error } = await db()
     .from('designs')
-    .select('*, collections(name), design_artworks(label,image_path,print_ready_path)')
+    .select(
+      '*, collections(name), design_artworks(label,image_path,print_ready_path), design_variants(id,image_path,chosen,created_at)',
+    )
     .eq('id', id)
     .maybeSingle();
   if (error) throw new Error(`Loading the design failed: ${error.message}`);

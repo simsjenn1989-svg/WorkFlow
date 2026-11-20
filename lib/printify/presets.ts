@@ -16,12 +16,24 @@ export type PresetVariant = {
   priceCents: number;
 };
 
-/** Where art sits in one print area, in Printify's normalised units. */
+/**
+ * What a preset says about one print area.
+ *
+ * It used to be fixed coordinates — `{x, y, scale, angle}` — applied to every design alike,
+ * which placed a short wordmark and a tall badge at visibly different heights because only
+ * the CENTRE was held constant. Placement is now computed per design from the trimmed art
+ * (see geometry.ts), so what belongs here is the rules, not the answer.
+ *
+ * `enabled: false` keeps an area configured but off: a front-only product should send no
+ * back placeholder at all, rather than an empty one that Printify may price as a second
+ * print.
+ */
 export type PresetPlacement = {
-  x: number;
-  y: number;
-  scale: number;
-  angle: number;
+  enabled: boolean;
+  /** Overrides of the defaults in geometry.ts, when this area wants different rules. */
+  topDropIn?: number;
+  maxWidthIn?: number;
+  maxHeightIn?: number;
 };
 
 export type Preset = {
@@ -68,21 +80,15 @@ export function priceForSize(size: string): number {
   return PRICE_LADDER[size] ?? BASE_PRICE_CENTS;
 }
 
-/**
- * The default placement for a print area.
- *
- * Centred horizontally and slightly above centre vertically, at full print-area width — the
- * values measured off the shop's existing front-and-back tee. Every area starts here and is
- * adjusted per preset, because what looks right differs between a full back print and a small
- * chest graphic.
- */
-export const DEFAULT_PLACEMENT: PresetPlacement = { x: 0.5, y: 0.45, scale: 1, angle: 0 };
+/** A new area starts switched on and following the standard rules. */
+export const DEFAULT_PLACEMENT: PresetPlacement = { enabled: true };
 
-export function placementFor(
-  preset: Pick<Preset, 'placements'>,
-  label: string,
-): PresetPlacement {
-  return preset.placements[label] ?? DEFAULT_PLACEMENT;
+/** The areas this preset actually prints, in a stable order with front first. */
+export function enabledAreas(preset: Pick<Preset, 'placements'>): string[] {
+  return Object.entries(preset.placements)
+    .filter(([, placement]) => placement?.enabled !== false)
+    .map(([area]) => area)
+    .sort((a, b) => (a === 'front' ? -1 : b === 'front' ? 1 : a.localeCompare(b)));
 }
 
 export function sortSizes(variants: PresetVariant[]): PresetVariant[] {

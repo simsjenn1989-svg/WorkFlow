@@ -109,7 +109,21 @@ export async function POST(request: Request) {
     kind: 'atlas.generate',
     status: 'running',
     cost_cents: costCents,
-    payload: { designId, predictionId, model: model.model, count: input.count, label, createdDesign },
+    // The prompt and params are kept so a failed generation can be retried exactly, rather
+    // than retyped from memory. They are the inputs, not the output, so they cost nothing
+    // to store and are the only record of what was asked for.
+    payload: {
+      designId,
+      predictionId,
+      model: model.model,
+      count: input.count,
+      label,
+      createdDesign,
+      prompt: input.prompt,
+      params: input.params,
+      collectionId: input.collectionId,
+      tags: input.tags,
+    },
   });
 
   return NextResponse.json({ designId, predictionId, costCents });

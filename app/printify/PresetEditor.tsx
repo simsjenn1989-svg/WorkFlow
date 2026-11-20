@@ -38,6 +38,7 @@ export function PresetEditor({ presets }: { presets: Preset[] }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [disabled, setDisabled] = useState<number[]>([]);
+  const [bulkPrice, setBulkPrice] = useState('');
 
   async function suggest(from?: Preset) {
     setBusy(true);
@@ -176,7 +177,10 @@ export function PresetEditor({ presets }: { presets: Preset[] }) {
                   <span className="text-zinc-500">
                     {preset.shop_title ?? preset.shop_id} · {preset.variants.length} size
                     {preset.variants.length === 1 ? '' : 's'} ·{' '}
-                    {Object.keys(preset.placements).join(' + ') || 'no areas'}
+                    {Object.entries(preset.placements)
+                      .filter(([, pl]) => pl?.enabled !== false)
+                      .map(([area]) => area)
+                      .join(' + ') || 'no areas'}
                     {preset.print_width_px
                       ? ` · ${preset.print_width_px}×${preset.print_height_px} px`
                       : ''}
@@ -255,7 +259,36 @@ export function PresetEditor({ presets }: { presets: Preset[] }) {
               </p>
 
               <div className="space-y-1.5">
-                <p className="text-[11px] font-medium text-zinc-400">Sizes and prices</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[11px] font-medium text-zinc-400">Sizes and prices</p>
+                  {/*
+                    One price across every size. The sizes mostly share a price and the
+                    ladder is the exception, so typing the common figure seven times is the
+                    wrong default — set them all, then raise the big ones.
+                  */}
+                  <label className="ml-auto flex items-center gap-1.5 text-[11px] text-zinc-500">
+                    set all to $
+                    <input
+                      aria-label="Price for every size"
+                      className="field w-20 py-0.5"
+                      value={bulkPrice}
+                      onChange={(e) => setBulkPrice(e.target.value)}
+                      placeholder="29.99"
+                    />
+                    <button
+                      className="rounded border border-zinc-700 px-1.5 py-0.5 text-zinc-300 hover:border-zinc-500"
+                      onClick={() => {
+                        const cents = Math.round(Number(bulkPrice) * 100);
+                        if (!Number.isFinite(cents) || cents <= 0) return;
+                        patch({
+                          variants: draft.preset.variants.map((v) => ({ ...v, priceCents: cents })),
+                        });
+                      }}
+                    >
+                      apply
+                    </button>
+                  </label>
+                </div>
                 <ul className="grid gap-1.5 sm:grid-cols-2">
                   {draft.preset.variants.map((variant) => (
                     <li key={variant.variantId} className="flex items-center gap-2 text-xs">
@@ -295,38 +328,69 @@ export function PresetEditor({ presets }: { presets: Preset[] }) {
 
               <div className="space-y-2">
                 <p className="text-[11px] font-medium text-zinc-400">
-                  Where the art sits
+                  Print areas
                   <span className="ml-2 font-normal text-zinc-600">
-                    x and y are the centre across the print area; scale 1 fills its width
+                    position is worked out per design from the trimmed art, so these are the
+                    limits, not the coordinates
                   </span>
                 </p>
                 {Object.entries(draft.preset.placements).map(([area, placement]) => (
-                  <div key={area} className="flex flex-wrap items-center gap-3 text-xs">
-                    <span className="w-12 shrink-0 text-zinc-300">{area}</span>
-                    {(['x', 'y', 'scale'] as const).map((field) => (
-                      <label key={field} className="flex items-center gap-1.5 text-zinc-500">
-                        {field}
-                        <input
-                          type="range"
-                          aria-label={`${area} ${field}`}
-                          min={field === 'scale' ? 0.1 : 0}
-                          max={field === 'scale' ? 2 : 1}
-                          step={0.01}
-                          value={placement[field]}
-                          onChange={(e) =>
-                            patch({
-                              placements: {
-                                ...draft.preset.placements,
-                                [area]: { ...placement, [field]: Number(e.target.value) },
-                              },
-                            })
-                          }
-                        />
-                        <span className="w-8 tabular-nums text-zinc-400">
-                          {placement[field].toFixed(2)}
-                        </span>
-                      </label>
-                    ))}
+                  <div key={area} className="space-y-1.5 rounded border border-zinc-800 p-2">
+                    <label className="flex items-center gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        aria-label={`Print the ${area}`}
+                        checked={placement.enabled !== false}
+                        onChange={(e) =>
+                          patch({
+                            placements: {
+                              ...draft.preset.placements,
+                              [area]: { ...placement, enabled: e.target.checked },
+                            },
+                          })
+                        }
+                      />
+                      <span className="font-medium text-zinc-200">{area}</span>
+                      <span className="text-zinc-600">
+                        {placement.enabled === false
+                          ? 'not printed — no placeholder is sent'
+                          : 'printed'}
+                      </span>
+                    </label>
+
+                    {placement.enabled !== false ? (
+                      <div className="flex flex-wrap gap-3 pl-6 text-[11px] text-zinc-500">
+                        {(
+                          [
+                            ['topDropIn', 'top below collar', 3],
+                            ['maxWidthIn', 'max width', 12],
+                            ['maxHeightIn', 'max height', 14],
+                          ] as const
+                        ).map(([field, label, fallback]) => (
+                          <label key={field} className="flex items-center gap-1.5">
+                            {label}
+                            <input
+                              aria-label={`${area} ${label}`}
+                              className="field w-16 py-0.5"
+                              value={placement[field] ?? fallback}
+                              onChange={(e) => {
+                                const value = Number(e.target.value);
+                                patch({
+                                  placements: {
+                                    ...draft.preset.placements,
+                                    [area]: {
+                                      ...placement,
+                                      [field]: Number.isFinite(value) ? value : fallback,
+                                    },
+                                  },
+                                });
+                              }}
+                            />
+                            in
+                          </label>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>

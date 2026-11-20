@@ -61,15 +61,32 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ status: 'failed', designId, error: 'This generation failed.' });
   }
 
+  // How long a generation may sit unfinished before it counts as lost.
+  //
+  // Images come back in seconds and the slowest measured was two minutes. Ten minutes of
+  // "processing" means Atlas is not coming back, and leaving the card saying "generating"
+  // for half a day is worse than saying so.
+  const TIMEOUT_MS = 10 * 60 * 1000;
+  const stale = Date.now() - new Date(job.created_at).getTime() > TIMEOUT_MS;
+
   let prediction;
   try {
     prediction = await getPrediction(predictionId);
   } catch (error) {
-    return NextResponse.json({ status: 'processing', designId, note: (error as Error).message });
+    const { permanent, message } = judgeFailure(error, job.created_at);
+    if (!permanent) {
+      return NextResponse.json({ status: 'processing', designId, note: message });
+    }
+    await failJob(job.id, designId, message, job.payload.createdDesign !== false);
+    return NextResponse.json({ status: 'failed', designId, error: message });
   }
 
   if (prediction.status === 'created' || prediction.status === 'processing') {
-    return NextResponse.json({ status: prediction.status, designId });
+    if (!stale) return NextResponse.json({ status: prediction.status, designId });
+
+    const message = `Atlas was still working after ${Math.round(TIMEOUT_MS / 60000)} minutes. Nothing was charged — try again.`;
+    await failJob(job.id, designId, message, job.payload.createdDesign !== false);
+    return NextResponse.json({ status: 'failed', designId, error: message });
   }
 
   if (prediction.status === 'failed') {
@@ -196,4 +213,29 @@ async function variantsFor(designId: string) {
       return { id: row.id, chosen: row.chosen, label: row.label, url: signed?.signedUrl ?? null };
     }),
   );
+}
+
+/**
+ * Mark a generation lost.
+ *
+ * Nothing is written to the ledger here, which is the whole reason a retry cannot double
+ * charge: cost is recorded when images are collected, so a job that never produced any has
+ * never counted against the month.
+ *
+ * A design created for this generation goes back to being an idea rather than sitting in
+ * Generated as a card that will never fill. One that already had art keeps its stage.
+ */
+async function failJob(
+  jobId: string,
+  designId: string,
+  error: string,
+  createdDesign: boolean,
+): Promise<void> {
+  await db()
+    .from('jobs')
+    .update({ status: 'failed', error, finished_at: new Date().toISOString() })
+    .eq('id', jobId);
+  if (createdDesign) {
+    await db().from('designs').update({ stage: 'idea' }).eq('id', designId).eq('stage', 'generated');
+  }
 }

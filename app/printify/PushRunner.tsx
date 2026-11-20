@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { DesignCard } from '@/lib/types';
-import type { Preset } from '@/lib/printify/presets';
+import { enabledAreas, type Preset } from '@/lib/printify/presets';
 
 type Skip = { designId: string; reason: string };
 type Progress = { total: number; queued: number; done: number; failed: number };
@@ -35,7 +35,9 @@ export function PushRunner({
   const [error, setError] = useState<string | null>(null);
 
   const preset = presets.find((p) => p.id === presetId) ?? presets[0]!;
-  const areas = useMemo(() => Object.keys(preset.placements), [preset]);
+  // Only the areas the preset actually prints. A disabled back is not a missing back,
+  // and warning that a design 'will go without back' when the back is switched off is noise.
+  const areas = useMemo(() => enabledAreas(preset), [preset]);
   const already = useMemo(() => new Set(drafted), [drafted]);
 
   /** Say up front which designs go whole, which go part, and which cannot go at all. */

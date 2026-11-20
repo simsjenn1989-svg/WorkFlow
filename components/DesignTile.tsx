@@ -1,14 +1,61 @@
 import Link from 'next/link';
+import type { Route } from 'next';
 import { STAGE_META, timeIn } from '@/lib/stages';
 import type { DesignCard } from '@/lib/types';
 
+/**
+ * What the tile should say about a design with no chosen artwork.
+ *
+ * "No image yet" was shown for every case, including a design whose generation had finished
+ * hours ago with two usable images sitting unpicked. That reads as a failure when the only
+ * thing missing is a decision.
+ */
+function describe(design: DesignCard): { empty: string; badge: string | null; tone: string } {
+  const job = design.job;
+
+  if (job && (job.status === 'queued' || job.status === 'running')) {
+    return {
+      empty: `Generating since ${timeIn(job.createdAt)} ago`,
+      badge: 'generating',
+      tone: 'bg-sky-500/20 text-sky-200',
+    };
+  }
+  if (job?.status === 'failed') {
+    return {
+      empty: job.error ? `Failed: ${job.error}` : 'Generation failed',
+      badge: 'failed',
+      tone: 'bg-rose-500/20 text-rose-200',
+    };
+  }
+  if (design.unchosen_variants > 0) {
+    return {
+      empty: '',
+      badge: `pick 1 of ${design.unchosen_variants}`,
+      tone: 'bg-amber-500/20 text-amber-200',
+    };
+  }
+  return { empty: 'No image yet', badge: null, tone: '' };
+}
+
+/** Generate, prefilled from the failed job, onto the same design. */
+function retryHref(design: DesignCard): Route {
+  const r = design.job?.retry;
+  const params = new URLSearchParams({
+    designId: design.id,
+    ...(r ? { prompt: r.prompt, model: r.model, count: String(r.count), label: r.label } : {}),
+  });
+  // typedRoutes cannot see through a built query string; the path itself is a real route.
+  return `/generate?${params}` as Route;
+}
+
 export function DesignTile({ design }: { design: DesignCard }) {
+  const status = describe(design);
   return (
-    <Link
-      href={`/designs/${design.id}`}
-      className="group block overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900
-                 transition hover:border-zinc-600"
-    >
+    // The card is a link, but Retry is a second destination, so the two are siblings inside
+    // a positioned wrapper rather than one nested in the other: a link inside a link is
+    // invalid HTML and browsers resolve it unpredictably.
+    <div className="group relative overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 transition hover:border-zinc-600">
+      <Link href={`/designs/${design.id}`} className="block">
       <div className="relative aspect-square bg-[repeating-conic-gradient(#27272a_0%_25%,#18181b_0%_50%)] bg-[length:16px_16px]">
         {design.image_url ? (
           /* Signed, expiring URLs — next/image would cache them past their lifetime. */
@@ -20,10 +67,29 @@ export function DesignTile({ design }: { design: DesignCard }) {
             loading="lazy"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-xs text-zinc-600">
-            No image yet
+          <div className="flex h-full items-center justify-center px-3 text-center text-xs text-zinc-600">
+            {status.empty}
           </div>
         )}
+
+        {/*
+          A badge rather than silence. The thumbnail now falls back to an unpicked variant,
+          so without this a design waiting on a decision looks identical to a finished one.
+        */}
+        {status.badge ? (
+          <span
+            className={`absolute left-1.5 top-1.5 rounded px-1.5 py-0.5 text-[10px] ${status.tone}`}
+          >
+            {status.badge}
+          </span>
+        ) : null}
+
+        {/*
+          Retry reopens Generate with the same prompt, model and count rather than firing a
+          new job on one click. Generating costs money, and this app's rule is that nothing
+          paid runs without the price being shown and confirmed — a silent one-click retry
+          would quietly break that.
+        */}
       </div>
       <div className="space-y-1 p-2.5">
         <p className="truncate text-sm font-medium text-zinc-100" title={design.title}>
@@ -48,6 +114,23 @@ export function DesignTile({ design }: { design: DesignCard }) {
           </div>
         ) : null}
       </div>
-    </Link>
+      </Link>
+
+      {/*
+        Retry reopens Generate with the same prompt, model and count rather than firing a new
+        job on one click. Generating costs money, and this app's rule is that nothing paid
+        runs without the price being shown and confirmed; a silent one-click retry would
+        quietly break that.
+      */}
+      {design.job?.status === 'failed' && design.job.retry ? (
+        <Link
+          href={retryHref(design)}
+          className="absolute right-1.5 top-1.5 z-10 rounded bg-zinc-200 px-2 py-0.5 text-[10px]
+                     font-medium text-zinc-900 hover:bg-white"
+        >
+          Retry
+        </Link>
+      ) : null}
+    </div>
   );
 }

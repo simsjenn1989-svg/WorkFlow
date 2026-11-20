@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { PlacementNudge } from './PlacementNudge';
 import { COMMON_LABELS, type Artwork } from '@/lib/artworks';
 import { checkFiles, uploadFiles } from '@/lib/upload-client';
 
@@ -86,6 +87,11 @@ export function ArtworkPanel({ designId, artworks }: { designId: string; artwork
                 ) : null}
               </div>
               <p className="truncate px-2 py-1 text-[11px] text-zinc-300">{artwork.label}</p>
+              <PlacementNudge
+                artworkId={artwork.id}
+                label={artwork.label}
+                placement={artwork.placement}
+              />
             </div>
           ))}
         </div>

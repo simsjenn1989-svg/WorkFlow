@@ -39,10 +39,10 @@ export async function GET(request: Request) {
 }
 
 const placement = z.object({
-  x: z.number().min(0).max(1),
-  y: z.number().min(0).max(1),
-  scale: z.number().min(0.05).max(3),
-  angle: z.number().min(-180).max(180),
+  enabled: z.boolean(),
+  topDropIn: z.number().min(0).max(20).optional(),
+  maxWidthIn: z.number().min(1).max(30).optional(),
+  maxHeightIn: z.number().min(1).max(30).optional(),
 });
 
 const schema = z.object({

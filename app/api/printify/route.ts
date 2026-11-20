@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { db } from '@/lib/supabase';
 import { artworkMap } from '@/lib/artworks';
-import { getPreset } from '@/lib/printify/presets';
+import { enabledAreas, getPreset } from '@/lib/printify/presets';
 
 export const runtime = 'nodejs';
 
@@ -28,9 +28,9 @@ export async function POST(request: Request) {
   const preset = await getPreset(parsed.data.presetId);
   if (!preset) return NextResponse.json({ error: 'That preset no longer exists.' }, { status: 404 });
 
-  const areas = Object.keys(preset.placements);
+  const areas = enabledAreas(preset);
   if (areas.length === 0) {
-    return NextResponse.json({ error: 'That preset has no print areas.' }, { status: 400 });
+    return NextResponse.json({ error: 'That preset has every print area switched off.' }, { status: 400 });
   }
 
   const { data: designRows } = await db()

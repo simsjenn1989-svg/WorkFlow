@@ -43,4 +43,22 @@ export type DesignCard = Design & {
   collection_name: string | null;
   image_url: string | null;
   artwork_labels: string[];
+  /**
+   * Generated images not yet picked from.
+   *
+   * The thumbnail used to come only from a chosen keeper, so a design with two finished
+   * images and no decision made showed "No image yet" — which reads as a failed generation
+   * when it is actually waiting on you. The count is here so the card can say which it is.
+   */
+  unchosen_variants: number;
+  /** The most recent generation for this design, when there has been one. */
+  job: {
+    id: string;
+    status: 'queued' | 'running' | 'done' | 'failed' | 'cancelled';
+    error: string | null;
+    predictionId: string | null;
+    createdAt: string;
+    /** What it was asked for, so a failed one can be run again with the same settings. */
+    retry: { prompt: string; model: string; count: number; label: string } | null;
+  } | null;
 };

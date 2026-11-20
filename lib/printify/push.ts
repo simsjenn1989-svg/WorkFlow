@@ -12,7 +12,8 @@ import {
   type ImagePlacement,
 } from './client';
 import { makePrintReady } from './print-ready';
-import { placementFor, type Preset } from './presets';
+import { enabledAreas, type Preset } from './presets';
+import { placeArtwork, type Placed } from './geometry';
 
 /**
  * Pushing one design to Printify as a draft.
@@ -30,6 +31,8 @@ export type PushResult = {
   url: string;
   skipped: string[];
   uploaded: { label: string; imageId: string; width: number; height: number; reused: boolean }[];
+  /** Where each one landed, in inches, so the result can be checked rather than assumed. */
+  placements: (Placed & { label: string; overridden: boolean })[];
 };
 
 export type PushInput = {
@@ -65,11 +68,15 @@ export async function pushDesign(input: PushInput): Promise<PushResult> {
 
   const byLabel = new Map(artworks.map((a) => [normaliseLabel(a.label), a]));
 
-  const areas = Object.keys(preset.placements);
-  if (areas.length === 0) throw new Error('That preset has no print areas configured.');
+  // Only the areas this preset actually prints. A disabled area sends no placeholder at
+  // all, which is the difference between a front-only shirt and one Printify treats as
+  // having a second, empty print.
+  const areas = enabledAreas(preset);
+  if (areas.length === 0) throw new Error('That preset has every print area switched off.');
 
   const skipped: string[] = [];
   const uploaded: PushResult['uploaded'] = [];
+  const placements: PushResult['placements'] = [];
   const placeholders: CreateProductInput['print_areas'][number]['placeholders'] = [];
 
   for (const area of areas) {
@@ -82,14 +89,28 @@ export async function pushDesign(input: PushInput): Promise<PushResult> {
     const image = await ensureUploaded(artwork, preset, input.useAtlas ?? false);
     uploaded.push({ label: area, ...image });
 
-    const placement = placementFor(preset, area);
+    // Worked out from the uploaded file's real dimensions, which are the trimmed ones — the
+    // print-ready step crops transparent padding before upload, so the width and height
+    // Printify reported back describe the visible art and nothing else. That is what makes
+    // "3 inches below the collar" mean the same thing for every design.
+    const computed = placeArtwork({
+      artWidthPx: image.width,
+      artHeightPx: image.height,
+      areaWidthPx: preset.print_width_px ?? 4494,
+      areaHeightPx: preset.print_height_px ?? 5097,
+      rules: preset.placements[area],
+    });
+
+    // A stored override wins, for the one design that wants moving.
+    const override = artwork.placement;
     const placed: ImagePlacement = {
       id: image.imageId,
-      x: placement.x,
-      y: placement.y,
-      scale: placement.scale,
-      angle: placement.angle,
+      x: override?.x ?? computed.x,
+      y: override?.y ?? computed.y,
+      scale: override?.scale ?? computed.scale,
+      angle: override?.angle ?? computed.angle,
     };
+    placements.push({ label: area, ...computed, overridden: Boolean(override) });
     placeholders.push({ position: area, images: [placed] });
   }
 
@@ -150,6 +171,7 @@ export async function pushDesign(input: PushInput): Promise<PushResult> {
     url: productUrl(preset.shop_id, created.id),
     skipped,
     uploaded,
+    placements,
   };
 }
 

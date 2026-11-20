@@ -47,6 +47,35 @@ export function GenerateForm({
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [message, setMessage] = useState('');
+  const [restored, setRestored] = useState<string | null>(null);
+
+  /**
+   * Prefill from a failed generation's Retry link.
+   *
+   * Read after mounting rather than from props, because this page renders on the server and
+   * seeding state from the query string would make the two first renders disagree. The
+   * generation is NOT started: the point of coming back here is that the price is quoted and
+   * confirmed again, the same as any other run.
+   */
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (!q.get('designId') && !q.get('prompt')) return;
+
+    const prompt = q.get('prompt');
+    if (prompt) setBody(prompt);
+    const retryModel = q.get('model');
+    if (retryModel && models.some((m) => m.model === retryModel)) setModelId(retryModel);
+    const retryCount = Number(q.get('count'));
+    if (Number.isFinite(retryCount) && retryCount > 0) setCount(Math.min(10, retryCount));
+    const retryLabel = q.get('label');
+    if (retryLabel) setLabel(retryLabel);
+    const designId = q.get('designId');
+    if (designId && designs.some((d) => d.id === designId)) setTargetDesignId(designId);
+
+    setRestored(designId ?? null);
+    // Clear the query so a refresh does not silently refill a form you have since edited.
+    window.history.replaceState(null, '', '/generate');
+  }, [models, designs]);
 
   const model = useMemo(() => models.find((m) => m.model === modelId), [models, modelId]);
   const visible = useMemo(() => {
@@ -374,6 +403,13 @@ export function GenerateForm({
             />
           </label>
         </section>
+
+        {restored !== null ? (
+          <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-[11px] leading-relaxed text-amber-200">
+            Filled in from the generation that failed. Nothing has run and nothing has been
+            charged — check the settings and the price, then generate when you are ready.
+          </p>
+        ) : null}
 
         <section className="space-y-2 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
           <div className="flex items-baseline justify-between text-sm">

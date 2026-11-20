@@ -42,6 +42,16 @@ export type PushInput = {
   useAtlas?: boolean;
   /** An existing Printify product to update rather than create a second draft. */
   existingProductId?: string | null;
+  /**
+   * Called the instant Printify returns a product id, before anything else can fail.
+   *
+   * The id is the only record that a draft now exists in someone else's shop. Writing it
+   * only after the whole push succeeds means a throw anywhere later — a dropped response, a
+   * failed database write — loses it, and the next push creates a SECOND draft because
+   * `existingProductId` is still null. Silent duplicates in a real shop, which is worse than
+   * a failed row, because a failed row is visible.
+   */
+  onProductCreated?: (productId: string) => Promise<void>;
 };
 
 export async function pushDesign(input: PushInput): Promise<PushResult> {
@@ -130,6 +140,10 @@ export async function pushDesign(input: PushInput): Promise<PushResult> {
   const created = input.existingProductId
     ? await updateProduct(preset.shop_id, input.existingProductId, product)
     : await createProduct(preset.shop_id, product);
+
+  // Record the id before anything else gets the chance to throw. A draft now exists in a
+  // real shop whatever happens next, and this is the only thing that knows it.
+  await input.onProductCreated?.(created.id);
 
   return {
     productId: created.id,

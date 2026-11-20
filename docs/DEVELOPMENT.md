@@ -725,3 +725,44 @@ Same mistake as the video poll earlier in this document: a thrown collection is 
 generation. The job now stays running on a thrown download and the client retries, with a
 fifteen minute window before it counts as real. Worth noticing that this class of bug has now
 appeared three times in three different pollers, each written separately.
+
+### The policy, not the pipeline
+
+Two separate pollers had made the same wrong call — a thrown download treated as the work
+having failed, discarding output that was finished and paid for. The tempting fix is one
+shared "collect a prediction" function. That was not done: the image poller and the video
+poller download different things into different tables, and forcing them together would
+produce an abstraction that fits neither.
+
+What they actually share is a judgement, so only that moved, into `lib/collect.ts`:
+`isPermanentFailure` (a 4xx is an answer; a reset is a blip) and `judgeFailure` (plus a
+fifteen-minute window so a service that keeps dropping the connection is eventually called a
+failure). About twenty lines, no restructuring, and the next thing that polls something
+inherits the right behaviour without being forced into a shape.
+
+Checked against every error string this session actually produced: `fetch failed`,
+`HTTP 520 error` and `Request was cancelled` retry; `400 Request parameters are invalid`,
+`InvalidEndpoint.ClosedEndpoint` and `401 Unauthorized` give up.
+
+### The retry introduced a duplicate
+
+Retrying a collection turned out to re-download outputs that had already been stored. The
+recovered raccoon generation made two images and left **three** variant rows — two of them
+byte-identical — plus an orphaned file from the first attempt.
+
+The fix needed nothing new: the output's position was already recorded in `params.index` when
+it was stored, so the loop reads what exists and skips it. Worth noting that the bug was
+created by the previous fix and only showed up because the storage audit counted one more
+orphan than expected.
+
+### An orphan draft in someone else's shop
+
+`printify/push` created the product at Printify and then wrote the id to the database. A
+throw in between — a dropped response, a failed write — marked the row failed with no id, so
+a real draft existed in the shop that the app did not know about, and the next push created a
+**second** one, because `existingProductId` was still null.
+
+Not lost money, and worse than a failed row in one respect: a failed row is visible, a
+duplicate draft is not. `pushDesign` now takes an `onProductCreated` callback invoked the
+instant Printify returns an id, and the catch deliberately leaves that id in place so a retry
+updates the draft rather than making another.

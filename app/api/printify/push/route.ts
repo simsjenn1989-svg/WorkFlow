@@ -70,6 +70,14 @@ export async function POST(request: Request) {
       tags: design.tags ?? [],
       useAtlas,
       existingProductId: job.printify_product_id,
+      // Written the moment Printify hands back an id, so a failure after this point leaves
+      // a row that knows about the draft and updates it next time instead of making another.
+      onProductCreated: async (productId) => {
+        await db()
+          .from('printify_products')
+          .update({ printify_product_id: productId, shop_id: preset.shop_id })
+          .eq('id', job.id);
+      },
     });
 
     await db()
@@ -91,6 +99,9 @@ export async function POST(request: Request) {
       .eq('id', design.id)
       .in('stage', ['approved', 'print_ready', 'mockups_done', 'assets_done']);
   } catch (error) {
+    // Marked failed, but the product id written by onProductCreated is deliberately left
+    // alone: a draft that reached Printify should be updated by the next push, not
+    // duplicated. Rendering and uploading are repeatable, so retrying costs nothing but time.
     await db()
       .from('printify_products')
       .update({

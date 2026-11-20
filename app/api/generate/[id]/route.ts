@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { BUCKET, db } from '@/lib/supabase';
 import { chargedCents, downloadOutput, getPrediction, isAtlasConfigured } from '@/lib/atlas';
+import { judgeFailure } from '@/lib/collect';
 
 export const runtime = 'nodejs';
 
@@ -89,7 +90,28 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   }
 
   // completed — copy every output into storage.
+  //
+  // Already-stored outputs are skipped, which matters now that a thrown collection is
+  // retried rather than failed. Without this, a run that stored image one and threw on image
+  // two stored image one AGAIN on the next attempt: two identical variants from one
+  // generation, and the first attempt's file orphaned in the bucket. Measured — the recovered
+  // raccoon generation produced two images and three variant rows, two of them the same
+  // sha256.
+  //
+  // The output's position is recorded in `params.index` when it is stored, which is what
+  // makes "have I already got this one?" answerable.
+  const { data: stored } = await db()
+    .from('design_variants')
+    .select('params')
+    .eq('design_id', designId);
+  const have = new Set(
+    ((stored ?? []) as { params: { index?: number } | null }[])
+      .map((row) => row.params?.index)
+      .filter((index): index is number => typeof index === 'number'),
+  );
+
   for (const [index, url] of prediction.outputs.entries()) {
+    if (have.has(index)) continue;
     try {
       const { bytes, contentType } = await downloadOutput(url);
       const variantId = randomUUID();
@@ -111,18 +133,12 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         cost_cents: Math.round(job.cost_cents / Math.max(1, prediction.outputs.length)),
       });
     } catch (error) {
-      // Collecting a finished generation is not the same as the generation failing.
-      //
-      // This happened for real: Atlas completed two images and charged for them, one
-      // download came back 520, and the job was marked failed — losing work that existed
-      // and had been paid for. Atlas keeps the outputs, so polling again collects them.
-      //
-      // The job therefore stays running and the client retries, until GIVE_UP_MS says
-      // something is genuinely wrong rather than merely flaky.
-      const message = (error as Error).message;
-      const age = Date.now() - new Date(job.created_at).getTime();
+      // Collecting a finished generation is not the same as the generation failing: Atlas
+      // keeps the outputs, so polling again collects them. judgeFailure decides whether
+      // this ends the work or just this attempt.
+      const { permanent, message } = judgeFailure(error, job.created_at);
 
-      if (age < GIVE_UP_MS) {
+      if (!permanent) {
         await db().from('jobs').update({ error: message }).eq('id', job.id);
         return NextResponse.json({ status: 'processing', designId, note: message });
       }
@@ -181,6 +197,3 @@ async function variantsFor(designId: string) {
     }),
   );
 }
-
-/** Atlas finishes images in seconds; well past that, a stuck collection is a real failure. */
-const GIVE_UP_MS = 15 * 60 * 1000;

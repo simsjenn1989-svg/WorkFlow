@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { BUCKET, db, signedUrl } from '@/lib/supabase';
 import { getPrediction } from '@/lib/atlas';
+import { judgeFailure, step } from '@/lib/collect';
 
 export const runtime = 'nodejs';
 /** Downloading a finished clip from Atlas and copying it into storage. */
@@ -105,19 +106,11 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     return NextResponse.json({ status: 'done', url: await signedUrl(path) });
   } catch (error) {
-    // A poll that throws is usually the network, not the clip.
-    //
-    // This happened in testing: one poll died with a bare "fetch failed" while Atlas had in
-    // fact already produced the video, and marking the row failed threw away a clip that was
-    // finished and paid for. Collecting it was a matter of polling again.
-    //
-    // So a thrown poll leaves the row running and the client tries again. Only after
-    // GIVE_UP_MS of this does it become a real failure, which stops a genuinely stuck
-    // prediction from being retried forever.
-    const message = (error as Error).message;
-    const age = Date.now() - new Date(video.created_at).getTime();
+    // A poll that throws is usually the network, not the clip: Atlas may well have the
+    // video already. judgeFailure decides whether this ends the work or just this attempt.
+    const { permanent, message } = judgeFailure(error, video.created_at);
 
-    if (!isPermanent(message) && age < GIVE_UP_MS) {
+    if (!permanent) {
       await db().from('videos').update({ error: message }).eq('id', video.id);
       return NextResponse.json({ status: 'running', warning: message });
     }
@@ -128,41 +121,4 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       .eq('id', video.id);
     return NextResponse.json({ status: 'failed', error: message });
   }
-}
-
-/** Atlas quotes up to 3 minutes for video; well past that something is actually wrong. */
-const GIVE_UP_MS = 15 * 60 * 1000;
-
-/**
- * Run a step and say which one failed.
- *
- * Node's fetch throws a bare `TypeError: fetch failed` with the real reason tucked into
- * `cause`, so an unlabelled failure here is indistinguishable between three different hosts.
- */
-async function step<T>(what: string, run: () => Promise<T>): Promise<T> {
-  try {
-    return await run();
-  } catch (error) {
-    const cause = (error as { cause?: { message?: string; code?: string } }).cause;
-    const detail = [cause?.code, cause?.message].filter(Boolean).join(' ');
-    throw new Error(`Failed ${what}: ${(error as Error).message}${detail ? ` (${detail})` : ''}`);
-  }
-}
-
-/**
- * Tell a real refusal from a blip.
- *
- * Retrying is right for a dropped connection and wrong for an answer. Atlas replying 4xx is
- * an answer: the first version treated one as transient and a clip that Atlas had definitely
- * given up on sat at "running" for fifteen minutes, showing nothing, while the screen said it
- * would appear when it was done.
- *
- * `ClosedEndpoint` is the one that was actually hit — a model whose endpoint Atlas had taken
- * out of service, returned while polling a job it had already accepted.
- */
-function isPermanent(message: string): boolean {
-  return (
-    /\b4\d\d\b/.test(message) ||
-    /ClosedEndpoint|InvalidEndpoint|Unauthorized|Forbidden|not found/i.test(message)
-  );
 }

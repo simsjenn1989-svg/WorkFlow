@@ -28,12 +28,12 @@ See [`docs/SPEC.md`](docs/SPEC.md) for the full design, and
 | 3 — mockup rendering | done |
 | 4 — Printify drafts | done |
 | 5 — pins | done |
-| 6 — UGC video | not started |
+| 6 — UGC video | done |
 | 7 — listing polish | done |
 
-Pins and listing polish were brought forward ahead of video: the pin tool already existed and
-only needed porting, and a pushed draft with a raw design title is not something to leave
-sitting there. See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for what each phase actually
+Phases were not built in order: pins and listing polish came before video, because the pin
+tool already existed and only needed porting, and a pushed draft with a raw design title is
+not something to leave sitting there. See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for what each phase actually
 measured, including the things that only real output caught.
 
 ## Principles

@@ -490,3 +490,71 @@ second caller. The gotchas they carry — no `temperature` for Claude 5.5, `effo
 because thinking comes out of `max_tokens`, a 3000-token budget with one retry at 6000 —
 now exist once rather than twice. `lib/copy/generate.ts` went from about 160 lines to 54, and
 the pin copy panel was re-tested afterwards.
+
+## Phase 6 — UGC video
+
+### The framing is the whole problem
+
+The renders are landscape — measured at 2000x1500 and 2000x1600, so 1.33 and 1.25. TikTok
+wants 9:16, which is 0.5625. Nothing about that reconciles itself.
+
+What makes it structural rather than cosmetic: **most image-to-video models take their aspect
+ratio from the frame they are given.** Seedance 2.5 offers only `ratio: adaptive`; Wan 3.0 has
+no ratio field at all; of the catalogue, only a minority expose `aspect_ratio`. Hand any of
+them a landscape still and a landscape clip comes back. So the vertical crop is not post-
+processing, it is the input that decides the output's shape, and it has to happen before a
+cent is spent.
+
+Three framings, compared on a real render:
+
+| | kept | verdict |
+|---|---|---|
+| **Crop** | 42% of the photo | Reads as a native phone shot. The default. |
+| **Fill** | 100%, blurred bars | Keeps the whole scene but spends most of the frame on blur. |
+| **As is** | 100% | Landscape clip. There when the destination is not TikTok. |
+
+The crop is centred on the **print area**, not on the middle of the photo, using the corners
+the mockup template already stores. On a lifestyle shot where the model stands off-centre
+that is the difference between a video of the shirt and a video of a Christmas tree. Sliders
+nudge it, and the preview endpoint returns the exact JPEG that would be sent, so the framing
+is settled by looking rather than by paying.
+
+### Two pricing units, and a rounding bug worth the whole section
+
+Of 139 image-to-video models, **32 price per second** and 107 price per clip. Quoting a
+10-second clip from a per-second model as if it were per-clip under-reports by 10x, so the
+unit is read from the catalogue and the duration multiplied in.
+
+The sharper one: three models cost **less than a cent** — $0.002, $0.007 a second, $0.009.
+The first version rounded the estimate to the nearest cent, so those quoted as **$0.00**. The
+screen offered them as free, the ledger would have recorded nothing, and the monthly ceiling
+would never have moved however many were generated. Estimates now round **up**, which
+over-records by a fraction of a cent — the safe direction for a spending limit — and the real
+figure is shown to three decimals next to it.
+
+A related one found at the same time: sorting the list cheapest-first put the $0.002 model at
+the top, which made the default selection the one the screen was least able to quote. Unpriced
+models now sort last.
+
+### A transient poll must not kill a finished clip
+
+A test run came back as `failed` with a bare `fetch failed`. Atlas had in fact produced the
+video — the mp4 was sitting on its media host, complete and downloadable — and polling again
+collected it without complaint. One blip on one of three different hosts had thrown away a
+clip that was finished and already paid for.
+
+So a thrown poll no longer fails the row. It records the message, leaves the status running,
+and the client tries again; only after 15 minutes does it become a real failure. The error
+text now names which of the three fetches broke, because Node's `fetch failed` on its own
+says nothing and the reason is hidden in `cause`.
+
+### Measured end to end
+
+`bytedance/seedance-v1-pro-fast/image-to-video`, 5 seconds, $0.009: out came **480x864 —
+exactly 9:16 — 5.04 s at 24 fps**, the model shifting and smiling with a slight camera pull-
+out, the print readable and undistorted throughout. Roughly 40 seconds start to finish.
+
+Worth knowing for prompting: the model invents things that were not in the still. In the test
+clip a camera appears in her hands by the last second. That is inherent to image-to-video, not
+a fault in the pipeline, and it is the reason the motion prompt is a saved, reusable shot
+rather than something retyped each time.

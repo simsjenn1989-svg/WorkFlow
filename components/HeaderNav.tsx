@@ -33,6 +33,9 @@ export function HeaderNav() {
         <Link href="/pins" className="hover:text-zinc-100">
           Pins
         </Link>
+        <Link href="/videos" className="hover:text-zinc-100">
+          Video
+        </Link>
         <Link href="/printify" className="hover:text-zinc-100">
           Printify
         </Link>

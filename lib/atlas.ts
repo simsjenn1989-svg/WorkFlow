@@ -21,8 +21,17 @@ export type AtlasModel = {
   categories: string[];
   tags: string[];
   schema: string;
-  /** Listed base price per image in USD. Higher quality tiers cost more than this. */
+  /** Listed base price in USD. Higher quality tiers cost more than this. */
   basePriceUsd: number;
+  /**
+   * What that price buys.
+   *
+   * 'call' means one image or one video; 'second' means one second of video. Measured across
+   * the live catalogue: 32 of the 139 image-to-video models price per second and the other
+   * 107 price per video, so treating them all the same would under-quote a ten-second clip
+   * by an order of magnitude.
+   */
+  priceUnit: 'call' | 'second';
 };
 
 export type AtlasField = {
@@ -84,40 +93,73 @@ type CatalogueEntry = {
   categories?: string[];
   tags?: string[];
   schema?: string;
-  price?: { actual?: { base_price?: string } };
+  price?: { actual?: { base_price?: string; unit?: string } };
 };
 
-let cache: { at: number; models: AtlasModel[] } | null = null;
+let cache: { at: number; models: CatalogueEntry[] } | null = null;
 const CACHE_MS = 10 * 60 * 1000;
 
-/** Every text-to-image model Atlas currently offers. Public endpoint — no key needed. */
-export async function listImageModels(): Promise<AtlasModel[]> {
+/** The whole published catalogue, fetched once and reused. Public endpoint — no key needed. */
+async function catalogue(): Promise<CatalogueEntry[]> {
   if (cache && Date.now() - cache.at < CACHE_MS) return cache.models;
 
   const response = await fetch(`${API}/api/v1/models`, { cache: 'no-store' });
   if (!response.ok) throw new Error(`Atlas Cloud catalogue returned ${response.status}`);
   const body = (await response.json()) as { data: CatalogueEntry[] };
 
-  const models = body.data
-    .filter((m) => m.type === 'Image' && (m.categories ?? []).includes('TEXT-TO-IMAGE') && m.schema)
-    .map<AtlasModel>((m) => ({
-      model: m.model,
-      displayName: m.displayName,
-      type: m.type,
-      profile: m.profile,
-      categories: m.categories ?? [],
-      tags: m.tags ?? [],
-      schema: m.schema!,
-      basePriceUsd: Number(m.price?.actual?.base_price ?? 0),
-    }))
-    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  cache = { at: Date.now(), models: body.data ?? [] };
+  return cache.models;
+}
 
-  cache = { at: Date.now(), models };
-  return models;
+function toModel(entry: CatalogueEntry): AtlasModel {
+  return {
+    model: entry.model,
+    displayName: entry.displayName,
+    type: entry.type,
+    profile: entry.profile,
+    categories: entry.categories ?? [],
+    tags: entry.tags ?? [],
+    schema: entry.schema!,
+    basePriceUsd: Number(entry.price?.actual?.base_price ?? 0),
+    priceUnit: entry.price?.actual?.unit === 'second' ? 'second' : 'call',
+  };
+}
+
+function byName(a: AtlasModel, b: AtlasModel): number {
+  return a.displayName.localeCompare(b.displayName);
+}
+
+/** Every text-to-image model Atlas currently offers. */
+export async function listImageModels(): Promise<AtlasModel[]> {
+  return (await catalogue())
+    .filter((m) => m.type === 'Image' && (m.categories ?? []).includes('TEXT-TO-IMAGE') && m.schema)
+    .map(toModel)
+    .sort(byName);
+}
+
+/**
+ * Every image-to-video model, cheapest first, with the unpriced ones last.
+ *
+ * Cheapest first rather than alphabetical because this is the paid list and the price is the
+ * thing being chosen between — measured at $0.009 to $0.134 a clip across 139 models.
+ *
+ * A handful publish no price at all. Sorting those to the front by their nominal zero would
+ * put a model that cannot be quoted at the top of the list and make it the default, which is
+ * exactly backwards for a screen whose job is to show the cost before anything runs.
+ */
+export async function listVideoModels(): Promise<AtlasModel[]> {
+  return (await catalogue())
+    .filter((m) => m.type === 'Video' && (m.categories ?? []).includes('IMAGE-TO-VIDEO') && m.schema)
+    .map(toModel)
+    .sort((a, b) => {
+      const priced = Number(b.basePriceUsd > 0) - Number(a.basePriceUsd > 0);
+      return priced || a.basePriceUsd - b.basePriceUsd || byName(a, b);
+    });
 }
 
 export async function getModel(id: string): Promise<AtlasModel | null> {
-  return (await listImageModels()).find((m) => m.model === id) ?? null;
+  const entry = (await catalogue()).find((m) => m.model === id && m.schema);
+  return entry ? toModel(entry) : null;
 }
 
 /**
@@ -166,6 +208,22 @@ export async function startGeneration(
   });
 }
 
+/**
+ * Start a video generation.
+ *
+ * A different endpoint from images — `/generateVideo`, per every image-to-video model's own
+ * published schema — but the same prediction to poll afterwards.
+ */
+export async function startVideoGeneration(
+  model: string,
+  params: Record<string, unknown>,
+): Promise<Prediction> {
+  return atlas<Prediction>('/api/v1/model/generateVideo', {
+    method: 'POST',
+    body: JSON.stringify({ ...params, model }),
+  });
+}
+
 export async function getPrediction(id: string): Promise<Prediction> {
   return atlas<Prediction>(`/api/v1/model/prediction/${encodeURIComponent(id)}`);
 }
@@ -186,4 +244,29 @@ export async function downloadOutput(url: string): Promise<{ bytes: Uint8Array; 
 /** Listed base price × count, in cents. Quality tiers above the default cost more. */
 export function estimateCents(model: AtlasModel, count: number): number {
   return Math.round(model.basePriceUsd * count * 100);
+}
+
+/**
+ * What one clip costs, in cents.
+ *
+ * Respects the price unit: a per-second model multiplied by the clip length, a per-video
+ * model charged once however long it runs. Still an estimate — a resolution above the
+ * model's default costs more than the listed base price, which is why nothing here is
+ * presented as a final figure.
+ *
+ * Rounds UP, which matters more than it looks. Three of the image-to-video models are priced
+ * under a cent a clip ($0.002, $0.007 a second, $0.009), and `Math.round` turned those into
+ * zero: the screen offered them as free, the ledger would have recorded nothing, and the
+ * monthly ceiling would never move however many were made. Rounding up over-records by a
+ * fraction of a cent, which is the safe direction for a spending limit. `priceUsd` is there
+ * for showing the real figure.
+ */
+export function estimateVideoCents(model: AtlasModel, durationSeconds: number): number {
+  return Math.ceil(priceUsd(model, durationSeconds) * 100);
+}
+
+/** The listed price for a clip of this length, in dollars, unrounded. */
+export function priceUsd(model: AtlasModel, durationSeconds: number): number {
+  const seconds = Math.max(1, Math.round(durationSeconds));
+  return model.basePriceUsd * (model.priceUnit === 'second' ? seconds : 1);
 }

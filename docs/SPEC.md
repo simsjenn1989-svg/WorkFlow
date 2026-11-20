@@ -358,7 +358,12 @@ the app contains no call to Printify's publish endpoint.
 **Phase 5 — pins.** Port the existing HTML tool, template records, batch composition, export
 presets.
 
-**Phase 6 — UGC video.** Shot library, image-to-video, cost confirmation, 9:16 output.
+**Phase 6 — UGC video.** *Built.* Shot library, image-to-video, cost confirmation, 9:16
+output. The renders are landscape and most image-to-video models take their aspect ratio from
+the frame they are given, so the vertical crop happens before the call, centred on the print
+area using the corners the mockup template already stores, and previewed at full size for
+free. Cost reads the model's price unit — 32 of the 139 models charge per second — and rounds
+up, because three of them cost less than a cent and rounding to nearest quoted those as free.
 
 **Phase 7 — listing polish.** *Built.* The house style is derived by reading the shop's own
 listings rather than written down: shared title suffix, the tags every listing carries, and

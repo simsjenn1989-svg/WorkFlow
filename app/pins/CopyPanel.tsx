@@ -15,10 +15,13 @@ export function CopyPanel({
   models,
   renderId,
   onPick,
+  onVariants,
 }: {
   models: CopyModel[];
   renderId: string;
   onPick: (patch: Partial<{ title: string; subtitle: string; pinTitle: string; pinDescription: string }>) => void;
+  /** Turn the whole set of headlines into one variant each. */
+  onVariants: (headlines: string[]) => void;
 }) {
   const [model, setModel] = useState(models[0]?.id ?? '');
   const [destination, setDestination] = useState<string>('etsy-listing');
@@ -159,6 +162,16 @@ export function CopyPanel({
             onStar={star}
             starred={starred}
           />
+
+          {result.headlines.length > 1 ? (
+            <button
+              className="btn w-full text-[11px]"
+              onClick={() => onVariants(result.headlines)}
+              title="One pin per headline, same image"
+            >
+              Make {result.headlines.length} variants
+            </button>
+          ) : null}
           <Options
             label="Subtitles"
             items={result.subtitles}

@@ -48,7 +48,29 @@ export function PinStudio({
   const [image, setImage] = useState<ImageBitmap | null>(null);
   const [renderId, setRenderId] = useState(renders[0]?.id ?? '');
   const [style, setStyle] = useState<PinStyle>({ ...DEFAULT_STYLE });
-  const [content, setContent] = useState<PinContent>({ ...EMPTY_CONTENT });
+  /**
+   * Several text variants of the same pin.
+   *
+   * Posting the same product to Pinterest several times with different headlines is how a
+   * listing gets tested, so a variant holds the words and the framing while the style is
+   * shared across the set — exactly the split the original drew between its per-image items
+   * and its global style object.
+   */
+  const [variants, setVariants] = useState<PinContent[]>([{ ...EMPTY_CONTENT }]);
+  const [active, setActive] = useState(0);
+  const content = variants[active] ?? variants[0] ?? EMPTY_CONTENT;
+
+  /** Edits land on the selected variant, so existing callers need no changes. */
+  const setContent = useCallback(
+    (update: PinContent | ((previous: PinContent) => PinContent)) => {
+      setVariants((previous) =>
+        previous.map((variant, i) =>
+          i === active ? (typeof update === 'function' ? update(variant) : update) : variant,
+        ),
+      );
+    },
+    [active],
+  );
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -166,10 +188,17 @@ export function PinStudio({
     };
   }, [drag]);
 
-  function toBlob(): Promise<Blob> {
+  /**
+   * Render one variant to a blob.
+   *
+   * Drawn on a canvas of its own rather than the visible one, so saving a set does not mean
+   * flicking the preview through every variant and waiting for React to settle between each.
+   * `drawPin` is deterministic, so an off-screen draw is identical to what is on screen.
+   */
+  function blobFor(variant: PinContent): Promise<Blob> {
     return new Promise((resolve, reject) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return reject(new Error('Nothing to export.'));
+      const canvas = document.createElement('canvas');
+      drawPin({ canvas, style, content: variant, image });
       canvas.toBlob(
         (blob) => (blob ? resolve(blob) : reject(new Error('The pin could not be exported.'))),
         style.format === 'jpeg' ? 'image/jpeg' : 'image/png',
@@ -178,19 +207,20 @@ export function PinStudio({
     });
   }
 
-  const fileName = `${(content.title || render?.design_title || 'pin')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')}.${style.format === 'jpeg' ? 'jpg' : 'png'}`;
+  const nameFor = (variant: PinContent) =>
+    `${(variant.title || render?.design_title || 'pin')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')}.${style.format === 'jpeg' ? 'jpg' : 'png'}`;
 
   async function download() {
     setError(null);
     try {
-      const blob = await toBlob();
+      const blob = await blobFor(content);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = fileName;
+      a.download = nameFor(content);
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -198,46 +228,80 @@ export function PinStudio({
     }
   }
 
-  async function save() {
+  async function saveOne(variant: PinContent) {
+    const blob = await blobFor(variant);
+    const file = new File([blob], nameFor(variant), { type: blob.type });
+    const [uploaded] = await uploadFiles('pin', [file]);
+    if (!uploaded) throw new Error('Upload failed.');
+
+    const response = await fetch('/api/pins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        path: uploaded.path,
+        renderId: render!.id,
+        headline: variant.title,
+        subtitle: variant.subtitle,
+        cta: style.cta,
+        footer: style.footer,
+        pinTitle: variant.pinTitle,
+        pinDescription: variant.pinDescription,
+        style,
+        content: variant,
+      }),
+    });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(body?.error ?? 'Saving failed.');
+    }
+  }
+
+  async function save(all = false) {
     if (!render) {
       setError('Pick a render first.');
       return;
     }
-    setBusy('Saving…');
+    const chosen = all ? variants : [content];
+    setBusy(all ? `Saving ${chosen.length}…` : 'Saving…');
     setError(null);
     try {
-      const blob = await toBlob();
-      const file = new File([blob], fileName, { type: blob.type });
-      const [uploaded] = await uploadFiles('pin', [file]);
-      if (!uploaded) throw new Error('Upload failed.');
-
-      const response = await fetch('/api/pins', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          path: uploaded.path,
-          renderId: render.id,
-          headline: content.title,
-          subtitle: content.subtitle,
-          cta: style.cta,
-          footer: style.footer,
-          pinTitle: content.pinTitle,
-          pinDescription: content.pinDescription,
-          style,
-          content,
-        }),
-      });
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? 'Saving failed.');
+      for (const [i, variant] of chosen.entries()) {
+        if (all) setBusy(`Saving ${i + 1} of ${chosen.length}…`);
+        await saveOne(variant);
       }
-      setMessage('Saved to your pins.');
+      setMessage(
+        chosen.length === 1 ? 'Saved to your pins.' : `Saved ${chosen.length} pins.`,
+      );
       router.refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(null);
     }
+  }
+
+  /** Same image and framing, fresh words — what the original's Duplicate Pin did. */
+  function duplicateVariant() {
+    setVariants((previous) => {
+      const copy = { ...(previous[active] ?? EMPTY_CONTENT) };
+      setActive(previous.length);
+      return [...previous, copy];
+    });
+  }
+
+  function removeVariant(index: number) {
+    setVariants((previous) => previous.filter((_, i) => i !== index));
+    setActive((current) => Math.max(0, current >= index ? current - 1 : current));
+  }
+
+  /** One variant per headline, for testing a set of them against the same image. */
+  function variantsFromHeadlines(headlines: string[]) {
+    if (headlines.length === 0) return;
+    setVariants((previous) => {
+      const base = previous[active] ?? EMPTY_CONTENT;
+      return headlines.map((title) => ({ ...base, title }));
+    });
+    setActive(0);
   }
 
   async function saveTemplate() {
@@ -311,10 +375,53 @@ export function PinStudio({
           <span className="w-10 text-right text-zinc-500">{Math.round(content.zoom * 100)}%</span>
         </label>
 
+        {/* Text variants of the same image. */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {variants.map((variant, i) => (
+            <span
+              key={i}
+              className={`inline-flex items-center overflow-hidden rounded-md border text-[11px] ${
+                i === active ? 'border-zinc-500 bg-zinc-800' : 'border-zinc-800'
+              }`}
+            >
+              <button
+                aria-label={`Variant ${i + 1}`}
+                className="max-w-36 truncate px-2 py-1 text-zinc-200 hover:bg-zinc-800"
+                onClick={() => setActive(i)}
+                title={variant.title || `Variant ${i + 1}`}
+              >
+                {variant.title?.trim() ? variant.title : `Variant ${i + 1}`}
+              </button>
+              {variants.length > 1 ? (
+                <button
+                  aria-label={`Remove variant ${i + 1}`}
+                  className="border-l border-zinc-800 px-1.5 py-1 text-zinc-600 hover:text-rose-400"
+                  onClick={() => removeVariant(i)}
+                >
+                  ×
+                </button>
+              ) : null}
+            </span>
+          ))}
+          <button
+            className="btn px-2 py-1 text-[11px]"
+            onClick={duplicateVariant}
+            disabled={variants.length >= 12}
+            title="Same image, new text variant"
+          >
+            + Duplicate
+          </button>
+        </div>
+
         <div className="flex flex-wrap items-center gap-2">
-          <button className="btn-primary" onClick={save} disabled={!!busy || !render}>
+          <button className="btn-primary" onClick={() => save(false)} disabled={!!busy || !render}>
             {busy ?? 'Save pin'}
           </button>
+          {variants.length > 1 ? (
+            <button className="btn" onClick={() => save(true)} disabled={!!busy || !render}>
+              Save all {variants.length}
+            </button>
+          ) : null}
           <button className="btn" onClick={download} disabled={!render}>
             Download
           </button>
@@ -359,6 +466,7 @@ export function PinStudio({
           <CopyPanel
             models={copyModels}
             renderId={renderId}
+            onVariants={variantsFromHeadlines}
             onPick={(patch) =>
               setContent((c) => ({
                 ...c,

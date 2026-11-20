@@ -293,3 +293,18 @@ overwrite the stored style with the defaults that rendered a moment before it wa
 
 Keys carry a version (`workflow.pin.style.v1`). If a stored shape ever stops matching the
 code, bumping the version beats migrating whatever sits in a browser somewhere.
+
+### Pin variants
+
+A pin can hold several text variants of the same image — posting a listing to Pinterest a
+few times with different headlines is how it gets tested. A variant carries the words and
+the framing; the style is shared across the set, the same split the original drew between
+its per-image items and its global style object.
+
+**Save all** renders each variant on a canvas of its own rather than flicking the preview
+through them and waiting for React to settle between each. `drawPin` is deterministic, so an
+off-screen draw is identical to what is on screen.
+
+**Make N variants** on the copy panel turns a whole set of generated headlines into one
+variant each, keeping the current framing. Generate five headlines, make five pins, save them
+all — which is the workflow the copy generation existed for.

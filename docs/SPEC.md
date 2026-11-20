@@ -348,7 +348,12 @@ app is worth using, so it gets a real side-by-side quality check against your be
 mockups before moving on.*
 
 **Phase 4 — Printify push.** Product presets, Comfort Colors 1717 preset, print-ready
-conversion, draft creation, the Ready-for-Polish queue.
+conversion, draft creation, the Ready-for-Polish queue. *Built.* A preset is read from
+Printify's live catalogue rather than typed in, so variant ids, sizes and print-area pixel
+sizes can never be stale; the shop is part of the preset, since the account has five. Print
+art is enlarged to the largest placeholder (4494 x 5097 on this blueprint) with Lanczos by
+default and Atlas's upscaler as a paid option. Drafts are created with `visible: false` and
+the app contains no call to Printify's publish endpoint.
 
 **Phase 5 — pins.** Port the existing HTML tool, template records, batch composition, export
 presets.

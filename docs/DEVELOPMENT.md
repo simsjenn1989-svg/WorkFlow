@@ -308,3 +308,103 @@ off-screen draw is identical to what is on screen.
 **Make N variants** on the copy panel turns a whole set of generated headlines into one
 variant each, keeping the current framing. Generate five headlines, make five pins, save them
 all — which is the workflow the copy generation existed for.
+
+## Phase 4 — Printify drafts
+
+### What the catalogue actually says
+
+Measured against the live account before any of this was written, not taken from docs:
+
+| | |
+|---|---|
+| Blueprint | **706** — Comfort Colors® 1717 Unisex Garment-Dyed T-shirt |
+| Print provider | **99** — Printify Choice |
+| Variants | 378 for that pair, 56 colours; **7 in Black**: S, M, L, XL, 2XL, 3XL, 4XL |
+| Print areas | named exactly `front` and `back` — the same words the artwork labels already use, so nothing has to be translated |
+| Print area size | **varies by variant**: S is 3703 × 4200, M is 4107 × 4658, **L through 4XL are 4494 × 5097** |
+
+That last row is the one to remember. A single print file is shared by every variant, so it
+has to be made for the **largest** placeholder or the big sizes print a scaled-up file.
+4494 × 5097 at 300 DPI is 15.0 × 17.0 inches.
+
+The shop's own live Comfort Colors product supplied the price ladder, read off it rather
+than invented: S–XL $36.99, 2XL $37.99, 3XL $41.99, 4XL $45.99. Its placements are in the
+same normalised units this app uses — `x`/`y` are the image centre across the print area and
+`scale: 1` fills its width; the back print sat at x 0.5, y 0.45, scale 1, which is where
+`DEFAULT_PLACEMENT` comes from.
+
+### Drafts, and why `visible: false`
+
+Not calling `POST /v1/shops/{id}/products/{id}/publish.json` is already enough to keep a
+product off Etsy and TikTok, and there is no code path to that endpoint anywhere in the app.
+But a product created by POST comes back with `visible: true`, so it shows as active in
+Printify's own product list. Sending `visible: false` on create is honoured — measured: a
+PUT with `visible: false` returns `visible: false` — so `createProduct` sets it, and a
+re-push leaves the field alone in case a product has since been published by hand.
+
+### The upscaler drops transparency
+
+Atlas returns designs at 1024 × 1024. Reaching 4494 means roughly a 4× enlargement, and
+Atlas sells exactly that: `atlascloud/image-upscaler`, $0.01, "texture-aware enhancement for
+print".
+
+It also **discards the alpha channel**. A 1024 PNG with a clean transparent background comes
+back as 4096 RGB with that background flattened to near-black — measured at (1, 1, 1) in
+every corner. Uploaded to Printify as-is, every design prints as a black rectangle covering
+the whole print area. Nothing about the build or the API response would have said so.
+
+`upscaleWithAtlas` therefore re-attaches an alpha channel taken from the original and resized
+by the same factor. Both are the same shape scaled identically, so the mask registers to the
+pixel.
+
+With that fixed, the two routes were compared on a real design:
+
+| | sharp Lanczos3 | Atlas + restored alpha |
+|---|---|---|
+| Cost | free | $0.01 per placement |
+| Time | instant | ~20 s |
+| Size | 3.7 MB | 20.4 MB |
+| Mean \|Laplacian\| (edge crispness, same crop) | 0.494 | **1.288** |
+
+The upscaler genuinely does sharpen edges — 2.6× the edge energy — but the two images differ
+by only 0.70/255 on average across the whole frame (max 18), so the gain lives in a thin band
+at each edge. Lanczos is therefore the default and the upscaler is a checkbox, worth ticking
+for fine lettering and not much else.
+
+### Trimming
+
+Print art is cropped to its opaque bounding box before enlargement. Without it, a design
+generated with wide empty margins prints smaller than the placement claims, and the only way
+to find out is to squint at Printify's preview. sharp's own `trim` works from a background
+colour and gives up on an alpha-only edge, so the bounding box is found from the alpha
+channel directly, with anything under 8/255 treated as empty.
+
+The visible effect: the GHOST MODE design is a 1024 × 1024 file whose front art trims to
+4494 × 2726 and whose back art trims to 4494 × 3331. Both fill the print area's width, which
+is what `scale: 1` is supposed to mean.
+
+### Reusing uploads
+
+Printify keeps uploaded images indefinitely and addresses them by id, so `printify_uploads`
+remembers the id per artwork along with **which file was sent**. If the print-ready file is
+rebuilt — a different upscaler, a changed print area — the paths stop matching and it is
+uploaded again, rather than a second product quietly printing the old version.
+
+A print-ready file is also rebuilt when it is too small for the preset's print area. The
+check is `width >= target × 0.98 **or** height >= target × 0.98`, not both: art keeps its own
+aspect ratio, so it fills the print area in exactly one direction. Requiring both would
+rebuild a correctly sized tall design on every single push.
+
+### Measured end to end
+
+One design with front and back art, pushed through the real UI against the real API: 14 s for
+two 1024 → 4494 enlargements, two uploads and the product create. The draft came back
+`visible: false`, 7 Black variants enabled at the right prices, both placements present at
+4494 × 2726 and 4494 × 3331, and Printify generated 5 of its own mockups from it. The test
+draft was deleted afterwards.
+
+### Stale `tsconfig.tsbuildinfo`
+
+`typedRoutes` kept rejecting `/printify` as a route long after the page existed and
+`.next/types/routes.d.ts` listed it. The route types were fine; `tsconfig.tsbuildinfo` was
+stale. Deleting it fixed it. Worth trying before believing a route-type error.

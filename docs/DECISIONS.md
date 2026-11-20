@@ -50,8 +50,11 @@ fetches and caches per preset instead.
 
 ## Open questions
 
-1. **Printify shop ID** — needed to push drafts. Retrievable from the API once the token is
-   set, so not blocking.
+1. ~~**Printify shop ID**~~ — settled. There are five shops on the account (MoonBloom,
+   Florumi and Starlit Christmas Co. on Etsy, MoonBloom Paper Co on Shopify, The Unfiltered
+   Club on TikTok), so a single env var would have been the wrong shape. Which shop a draft
+   goes to is part of the product preset, picked from the live `/v1/shops.json` list, and a
+   second preset can point the same blueprint at a different shop.
 
 2. **Which mockup photos** — a handful of blank black 1717 shots: a flat lay, a hanging
    shot, a worn front, and one lifestyle scene is plenty to prove the engine. Nothing
@@ -70,5 +73,7 @@ fetches and caches per preset instead.
 | White ink on black looks fake | The hardest case, and the only one that matters since you sell black. Handled explicitly in SPEC §2 and judged in the Phase 3 comparison |
 | Atlas spend runs away | Quote before every paid call, monthly ceiling, per-design cost ledger |
 | Printify replaces our mockups with its own on publish | Known. Handled in the Claude polish step via `printify_send_mockups_to_etsy` |
-| Printify print-area sizes drift | Fetched from the API and cached per preset, never hardcoded |
+| Printify print-area sizes drift | Fetched from the API and cached per preset, never hardcoded. A print-ready file smaller than the preset's area is rebuilt rather than uploaded |
+| A draft reaches a sales channel by accident | There is no call to Printify's publish endpoint anywhere in the app, and products are created with `visible: false` |
+| An upscaler silently ruins print art | It did: Atlas flattens transparency to near-black. Caught by measuring the output, not by the build. The alpha channel is now restored explicitly and the stored file is checked |
 | AI-generated designs raise IP questions on Etsy/TikTok | Out of the app's scope, but worth your own policy check before scaling volume |

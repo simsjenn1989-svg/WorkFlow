@@ -21,7 +21,19 @@ See [`docs/SPEC.md`](docs/SPEC.md) for the full design, and
 
 ## Status
 
-Planning. Nothing built yet.
+| | |
+|---|---|
+| 1 — board, auth, storage | done |
+| 2 — Atlas design generation | done |
+| 3 — mockup rendering | done |
+| 4 — Printify drafts | done |
+| 5 — pins | done |
+| 6 — UGC video | not started |
+| 7 — listing polish | not started |
+
+Pins were brought forward ahead of video because the tool already existed and only needed
+porting. See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for what each phase actually
+measured, including the things that only real output caught.
 
 ## Principles
 

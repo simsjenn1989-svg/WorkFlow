@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { BUCKET, db } from '@/lib/supabase';
+import { db } from '@/lib/supabase';
+import { filesOwnedByDesign, removeAll } from '@/lib/storage';
 import { isStage, nextStage, previousStage, type Stage } from '@/lib/stages';
 
 /** Shape returned by every action so the UI can show a message without throwing. */
@@ -71,17 +72,32 @@ export async function updateDesign(designId: string, form: FormData): Promise<Ac
   return { ok: true };
 }
 
-/** Deletes the row and every stored object under its folder. */
+/**
+ * Delete a design, everything made from it, and every file either owned.
+ *
+ * The file list is gathered BEFORE the row goes, because deleting the design cascades its
+ * renders, pins and videos away and there is then nothing left to say which files were
+ * theirs. That ordering is the whole fix: the earlier version listed one level of the
+ * design's own folder and stopped, so `variants/` and `print-ready/` survived and the
+ * renders, pins and clips were never considered at all. One deleted design left 46 MB of
+ * a 70 MB bucket behind.
+ *
+ * What is NOT deleted: the draft in Printify. That lives in someone else's system, so the
+ * design page warns before the button is pressed rather than reporting it afterwards.
+ */
 export async function deleteDesign(designId: string): Promise<ActionResult> {
-  const { data: list } = await db().storage.from(BUCKET).list(`designs/${designId}`);
-  if (list?.length) {
-    await db()
-      .storage.from(BUCKET)
-      .remove(list.map((o) => `designs/${designId}/${o.name}`));
-  }
+  const paths = await filesOwnedByDesign(designId);
+
   const { error } = await db().from('designs').delete().eq('id', designId);
   if (error) return fail(`Deleting failed: ${error.message}`);
+
+  await removeAll(paths);
+
   revalidatePath('/');
+  revalidatePath('/renders');
+  revalidatePath('/pins');
+  revalidatePath('/videos');
+  revalidatePath('/printify');
   return { ok: true };
 }
 

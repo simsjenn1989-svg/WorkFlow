@@ -110,3 +110,27 @@ export async function listTags(): Promise<{ tag: string; count: number }[]> {
     .map(([tag, count]) => ({ tag, count }))
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
 }
+
+/** What a design owns, for warning before a delete takes it all. */
+export async function thingsMadeFrom(designId: string): Promise<{
+  renders: number;
+  pins: number;
+  videos: number;
+  drafts: number;
+  total: number;
+}> {
+  const count = async (table: string) => {
+    const { count: n } = await db()
+      .from(table)
+      .select('id', { count: 'exact', head: true })
+      .eq('design_id', designId);
+    return n ?? 0;
+  };
+  const [renders, pins, videos, drafts] = await Promise.all([
+    count('renders'),
+    count('pins'),
+    count('videos'),
+    count('printify_products'),
+  ]);
+  return { renders, pins, videos, drafts, total: renders + pins + videos + drafts };
+}

@@ -666,3 +666,33 @@ UGC convention for clothing and may be wanted, but the hands cross the graphic w
 it. Seedance v1 Pro Fast kept hands out of frame and simply let her turn and smile. (It is not
 immune — under a different prompt it put a camera in her hands — so the motion prompt matters
 as much as the model.)
+
+### Deleting a design left most of its files behind
+
+Found when looking for test designs to remove: the bucket held **65 files, 70 MB, of which 40
+files and 46 MB were orphaned** — nothing in the database pointed at them.
+
+Two causes, both in one short function.
+
+`deleteDesign` listed `designs/{id}` and removed what came back. Supabase storage has no
+folders — a path is a name with slashes — and `list` returns one level, with a prefix showing
+up as an entry whose `id` is null. So `variants/` and `print-ready/` appeared as two entries,
+`remove` was called on them as if they were files, and every PNG inside survived.
+
+Worse, it only ever considered the design's own folder. Renders, pins and videos reference
+`design_id` with `on delete cascade`, so deleting one design silently removed **16 video rows,
+4 render rows and 5 pin rows** — and not one of their files. Deleting a single test design
+accounted for nearly all 46 MB.
+
+The fix is ordering as much as recursion: the file list is gathered **before** the row is
+deleted, because the cascade destroys the only record of which files belonged to what.
+`listRecursive` walks prefixes properly, and `filesOwnedByDesign` collects the design's folder
+plus the output of every render, pin and clip made from it.
+
+The design page now also says what a delete will take — "4 renders, 1 clip and their files" —
+and notes that a Printify draft stays in the shop, because that lives in someone else's system
+and the app has no business deleting it silently.
+
+`findOrphans` sweeps the bucket against every path column in every table, for cleaning up what
+was already lost. It returns the list rather than deleting it: "no row points at this" is a
+strong claim, and acting on it should be a decision.

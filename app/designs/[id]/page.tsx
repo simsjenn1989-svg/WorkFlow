@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { isConfigured } from '@/lib/supabase';
-import { getDesign, getStageHistory, listCollections } from '@/lib/data';
+import { getDesign, getStageHistory, listCollections, thingsMadeFrom } from '@/lib/data';
 import { deleteDesign, updateDesign } from '@/app/actions';
 import { STAGE_META, timeIn } from '@/lib/stages';
 import { SetupNotice } from '@/app/setup/SetupNotice';
@@ -23,11 +23,14 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
   const design = await getDesign(id);
   if (!design) notFound();
 
-  const [history, collections, variants, artworks] = await Promise.all([
+  const [history, collections, variants, artworks, belongings] = await Promise.all([
     getStageHistory(id),
     listCollections(),
     listVariants(id),
     listArtworks(id),
+    // What deleting this design would take with it. Counted so the warning states numbers
+    // rather than a vague "and related items".
+    thingsMadeFrom(id),
   ]);
   const meta = STAGE_META[design.stage];
 
@@ -112,6 +115,28 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
                 onDone="/"
               />
             </div>
+
+            {belongings.total > 0 ? (
+              <p className="text-[11px] leading-relaxed text-amber-500/90">
+                Deleting also removes{' '}
+                {[
+                  belongings.renders && `${belongings.renders} render${belongings.renders === 1 ? '' : 's'}`,
+                  belongings.pins && `${belongings.pins} pin${belongings.pins === 1 ? '' : 's'}`,
+                  belongings.videos && `${belongings.videos} clip${belongings.videos === 1 ? '' : 's'}`,
+                ]
+                  .filter(Boolean)
+                  .join(', ')}{' '}
+                and their files.
+                {belongings.drafts > 0 ? (
+                  <>
+                    {' '}
+                    The {belongings.drafts === 1 ? 'draft' : `${belongings.drafts} drafts`} already
+                    pushed to Printify {belongings.drafts === 1 ? 'stays' : 'stay'} in your shop —
+                    delete {belongings.drafts === 1 ? 'it' : 'them'} there too.
+                  </>
+                ) : null}
+              </p>
+            ) : null}
           </ActionForm>
         </div>
 

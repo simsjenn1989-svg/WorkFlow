@@ -52,6 +52,7 @@ export function VideoStudio({
   const [prompt, setPrompt] = useState('');
   const [fields, setFields] = useState<AtlasField[]>([]);
   const [promptRequired, setPromptRequired] = useState(false);
+  const [ratioField, setRatioField] = useState<AtlasField | null>(null);
   const [params, setParams] = useState<Record<string, unknown>>({});
 
   const [status, setStatus] = useState<'idle' | 'starting' | 'running' | 'done' | 'failed'>('idle');
@@ -86,6 +87,7 @@ export function VideoStudio({
         const offered = (body.fields ?? []).filter((f) => !APP_CONTROLLED.has(f.name));
         setFields(offered);
         setPromptRequired((body.required ?? []).includes('prompt'));
+        setRatioField(offered.find((f) => f.name === 'aspect_ratio' || f.name === 'ratio') ?? null);
         setParams(
           Object.fromEntries(
             offered.filter((f) => f.default !== undefined).map((f) => [f.name, f.default]),
@@ -95,6 +97,7 @@ export function VideoStudio({
         if (!cancelled) {
           setFields([]);
           setPromptRequired(false);
+          setRatioField(null);
         }
       }
     })();
@@ -172,6 +175,13 @@ export function VideoStudio({
   // Measured across 40 of the image-to-video models: 23 insist on a prompt and 17 do not.
   // Catching it here beats submitting and relaying Atlas's rejection.
   const missingPrompt = promptRequired && prompt.trim().length === 0;
+  const modelRatios = ratioField?.enum ?? [];
+  // Only worth suggesting when the model actually offers a vertical option. A model whose
+  // only choice is `adaptive` cannot be asked for 9:16, and telling you to pick one would be
+  // advice for a control that is not there.
+  const canGoVertical = modelRatios.includes('9:16');
+  const chosenRatio = params[ratioField?.name ?? ''] ?? ratioField?.default;
+  const vertical = chosenRatio === '9:16';
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_21rem]">
@@ -240,6 +250,27 @@ export function VideoStudio({
                 This exact frame is what gets sent. Most models take their shape from it, so a
                 landscape frame returns a landscape clip.
               </p>
+              {/*
+                Worth saying rather than preventing. Handing over the whole landscape scene
+                and letting the model crop to a vertical aspect ratio is a real technique and
+                can frame better than cropping here first, because the model sees everything
+                instead of a slice chosen around the print area. What you give up is the
+                preview: only the model knows where it will cut.
+              */}
+              {canGoVertical && mode !== 'crop' ? (
+                <p className={vertical ? 'text-sky-400/90' : undefined}>
+                  {model?.displayName} can crop to its own shape:{' '}
+                  {vertical
+                    ? `aspect_ratio is ${String(chosenRatio)}, so it will cut this down to vertical itself — you just will not see where until it is made.`
+                    : `set aspect_ratio to 9:16 in its settings and it will cut this down to vertical itself.`}
+                </p>
+              ) : null}
+              {ratioField && !canGoVertical && mode !== 'crop' ? (
+                <p className="text-amber-500/90">
+                  This model only offers <code>adaptive</code>, which copies the frame&rsquo;s shape.
+                  Crop here or the clip comes back landscape.
+                </p>
+              ) : null}
               {mode === 'crop' ? (
                 <>
                   <label className="flex items-center gap-2">

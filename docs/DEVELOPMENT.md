@@ -596,3 +596,31 @@ therefore fine about 40% of the time and a guaranteed rejection the rest.
 The schema's `required` list is now read with its fields, the Motion heading says which kind
 of model is selected, and the button is disabled with an explanation rather than submitting a
 job that will bounce. Checked on the server too, since the form is not the authority.
+
+### Letting the model do the cropping
+
+Tried deliberately: a 4:3 landscape frame sent with `aspect_ratio: 9:16`. The result was a
+true **480x864** clip. The model cropped the landscape frame to vertical itself — no
+letterboxing, no squashing, no distortion — and centred on the subject rather than on the
+print area, keeping her face in shot. Side by side with the app-cropped version of the same
+render and model, the model's composition was the better of the two.
+
+That is worth knowing, and it is the opposite of what the crop was built assuming. Handing
+over the whole scene gives the model everything to compose from; cropping here first hands it
+a 42% slice chosen around the graphic. So the two paths are:
+
+- **Crop here** — deterministic, centred on the print area, previewed for free before paying.
+- **As is + `aspect_ratio: 9:16`** — the model composes, often better, but you cannot see
+  where it will cut until it is made, and nothing guarantees the design stays in frame.
+
+Neither is right in general, so the app offers both and explains the trade rather than
+forcing the frame and the aspect ratio to agree. An earlier instinct to "fix" the mismatch
+automatically would have removed a technique that turns out to be useful.
+
+This only works where the model publishes a vertical option: of 45 sampled, 32 expose
+`aspect_ratio` or `ratio`, but 6 of those offer only `adaptive`, which just copies the input's
+shape. The panel now says which case the selected model is in, and says nothing about setting
+a value that model does not offer.
+
+Also fixed alongside: `original` framing was enlarging a 2000x1500 render to 2560x1920 — a
+third more bytes over the wire for detail that was never there.

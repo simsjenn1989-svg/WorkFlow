@@ -65,9 +65,12 @@ export async function prepareFrame(
   if (!width || !height) throw new Error('That render has no readable size.');
 
   if (options.mode === 'original') {
+    // No enlargement. A 2000x1500 render was going out as 2560x1920 — a third more bytes
+    // over the wire for detail that was never there. Models that crop to their own
+    // aspect ratio do it from whatever they are given, so size costs and buys nothing.
     const resized = await sharp(image)
       .rotate()
-      .resize({ height: outHeight, withoutEnlargement: false })
+      .resize({ height: outHeight, withoutEnlargement: true })
       .jpeg({ quality: 92 })
       .toBuffer({ resolveWithObject: true });
     return {

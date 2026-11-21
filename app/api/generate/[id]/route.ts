@@ -200,7 +200,12 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   // `high` were quoted at $0.014 and charged $0.16168. Recording the estimate meant the
   // monthly total was eleven times under, which makes the ceiling meaningless. The real
   // figure arrives on the finished prediction, so it is used whenever it is there.
-  const actual = chargedCents(prediction) ?? job.cost_cents;
+  //
+  // "Whenever it is there" needed work. Atlas marks a prediction `completed` a moment before
+  // it posts `price`, so collecting promptly read no price and fell back to the estimate —
+  // measured on nano-banana-pro, recorded at its listed $0.14 against an actual $0.24. The
+  // price is waited for briefly rather than guessed at.
+  const actual = (await chargedCentsWhenPosted(predictionId, prediction)) ?? job.cost_cents;
 
   await db().from('cost_ledger').insert({
     design_id: designId,
@@ -263,4 +268,31 @@ async function failJob(
   if (createdDesign) {
     await db().from('designs').update({ stage: 'idea' }).eq('id', designId).eq('stage', 'generated');
   }
+}
+
+/**
+ * The charged price, giving Atlas a moment to post it.
+ *
+ * A prediction turns `completed` before `charge_status` becomes `charged` and `price` is
+ * filled in. Three quick re-reads cover the gap; past that the estimate is the honest
+ * answer, and under-recording by a known amount beats blocking a collection.
+ */
+async function chargedCentsWhenPosted(
+  predictionId: string,
+  first: Awaited<ReturnType<typeof getPrediction>>,
+): Promise<number | null> {
+  const immediate = chargedCents(first);
+  if (immediate !== null && immediate > 0) return immediate;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const again = chargedCents(await getPrediction(predictionId));
+      if (again !== null && again > 0) return again;
+    } catch {
+      // The images are already collected; a price lookup failing must not fail the job.
+      break;
+    }
+  }
+  return null;
 }

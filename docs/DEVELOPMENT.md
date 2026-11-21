@@ -984,3 +984,35 @@ Only `resolution` is overridden. `size` and `quality` on the gpt-image models mu
 real charge — two 2160x3840 images at quality `high` were quoted at $0.014 and billed
 $0.16168 — and maxing those automatically would spend money nobody asked to spend. Resolution
 on these models is per-call priced, which is what makes it safe to max.
+
+### The price posts after the prediction completes
+
+The "record what Atlas charged" fix had a hole. A prediction turns `completed` a moment
+before `charge_status` becomes `charged` and `price` is filled in, so collecting promptly
+read no price and fell back to the estimate — exactly what the fix existed to stop.
+
+Caught by comparing every recent job against Atlas: `nano-banana-pro/edit` recorded at its
+listed **$0.14** against an actual **$0.24**. Three more rows were under by smaller amounts.
+The collector now waits briefly for the price rather than taking the first read, and the
+existing rows were reconciled: month to date went $1.40 → $1.59.
+
+Worth noting what made it findable. Most of the apparent mismatches were not mismatches —
+$0.0344 recorded as 4c is the deliberate round-up — so the check had to compare against the
+unrounded figure to see which gaps were real. One of five was.
+
+### 4k, and whether the Pro tier earns its price
+
+With resolution raised, three runs on the same reference:
+
+| | charged | size |
+|---|---|---|
+| Nano Banana 2.1 dev, 1k | $0.02 | 1024 |
+| Nano Banana 2.1 dev, 4k | $0.05 | 4096 |
+| Nano Banana Pro, 4k | **$0.24** | 4096 |
+
+4k is a real improvement and nearly free: at 4096 the lettering holds up at full zoom, and
+print-ready's upscale drops from 4.4x to 1.10x for a 4494px print.
+
+Pro is not worth 5x here. On the same brief it drifted furthest from the reference — Santa in
+pink and blue rather than red, the reindeer pink — which is a reinterpretation of the subject
+rather than of the style, and the style is the only thing that was supposed to change.

@@ -30,7 +30,7 @@ tells you what it's waiting for:
 | Column | What it means | What to do |
 |---|---|---|
 | **Idea** | Written down, not made yet | **Generate this** on the card |
-| **Generated** | Images came back | Pick the keeper |
+| **Generated** | Several images came back | Pick the keeper |
 | **Approved** | A keeper is chosen | Render mockups, or push a draft |
 | **Print ready** | Sized for the blueprint | (optional — the push does this for you) |
 | **Mockups done** | Renders exist | Make pins and video |
@@ -73,7 +73,7 @@ Three ways in, then, and they start in different places:
 | | Starts at |
 |---|---|
 | **+ New idea** | Idea |
-| **Generate** | Generated |
+| **Generate** | Generated, or Approved when you asked for one image |
 | **+ Add designs** (upload) | Approved |
 
 Clicking any card opens that design — see step 3.
@@ -135,9 +135,11 @@ in, and it's where most of the per-design work happens. You get:
 
 - **The image**, on a checkerboard so you can see the transparency, with **Download PNG**
   underneath.
-- **Variants** — every image from that generation. Hit **Use this one** to make it the
-  keeper, which moves the design to **Approved** and spends about six seconds sizing it to
-  the print area (see below). Each tile also has its own small
+- **Variants** — every image from that generation. **Asking for one image needs no
+  decision, so it becomes the artwork by itself**, on the placement you chose on the Generate
+  screen, and the design lands in **Approved**. Ask for two or more and they wait: hit
+  **Use this one** on the keeper, which moves the design to Approved and spends about six
+  seconds sizing it to the print area (see below). Each tile also has its own small
   **download** link, which is how you get an option you *didn't* pick out of the app.
 - **Artwork** panel (right) — what is actually on each placement. This is not where you
   tell the app where the design goes: a variant already carries the placement you chose on

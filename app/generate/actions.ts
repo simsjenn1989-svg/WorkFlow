@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/lib/supabase';
 import { slotsIn } from '@/lib/queries';
-import { normaliseLabel, putArtwork, PRIMARY_LABEL } from '@/lib/artworks';
+import { adoptVariant } from '@/lib/adopt';
 import type { ActionResult } from '@/app/actions';
 
 function fail(error: string): ActionResult {
@@ -82,33 +82,8 @@ export async function deletePrompt(id: string): Promise<ActionResult> {
  * becomes the design. The rest stay on record so the choice can be revisited.
  */
 export async function chooseVariant(designId: string, variantId: string): Promise<ActionResult> {
-  const { data: variant, error: readError } = await db()
-    .from('design_variants')
-    .select('id,image_path,design_id,label')
-    .eq('id', variantId)
-    .maybeSingle();
-  if (readError || !variant) return fail('That variant no longer exists.');
-  if (variant.design_id !== designId) return fail('That variant belongs to another design.');
-
-  const label = normaliseLabel((variant as { label?: string }).label ?? PRIMARY_LABEL);
-
-  // Only variants for this placement change hands; art for other placements is untouched.
-  await db()
-    .from('design_variants')
-    .update({ chosen: false })
-    .eq('design_id', designId)
-    .eq('label', label);
-  await db().from('design_variants').update({ chosen: true }).eq('id', variantId);
-
-  const { error: artError } = await putArtwork({
-    designId,
-    label,
-    imagePath: variant.image_path as string,
-  });
-  if (artError) return fail(`Choosing it failed: ${artError}`);
-
-  const { error } = await db().from('designs').update({ stage: 'approved' }).eq('id', designId);
-  if (error) return fail(`Choosing it failed: ${error.message}`);
+  const result = await adoptVariant(designId, variantId);
+  if ('error' in result) return fail(`Choosing it failed: ${result.error}`);
 
   revalidatePath('/');
   revalidatePath(`/designs/${designId}`);

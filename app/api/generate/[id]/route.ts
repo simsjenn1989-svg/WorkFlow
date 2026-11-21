@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { BUCKET, db } from '@/lib/supabase';
 import { chargedCents, downloadOutput, getPrediction, isAtlasConfigured } from '@/lib/atlas';
 import { judgeFailure } from '@/lib/collect';
+import { adoptVariant } from '@/lib/adopt';
+import { normaliseDesign } from '@/lib/printify/canvas';
 import { cutBackground, needsCutout } from '@/lib/cutout';
 
 export const runtime = 'nodejs';
@@ -228,7 +230,55 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     })
     .eq('id', job.id);
 
-  return NextResponse.json({ status: 'completed', designId, variants: await variantsFor(designId) });
+  /*
+    One image is not a choice.
+
+    The `generated` stage exists so that several images can be compared and one kept. Ask
+    for one and there is nothing to compare: the design still landed in Generated with
+    "Artwork 0" and "no placements", and the placement chosen on the Generate screen looked
+    like it had been discarded — when all that was missing was a click on the only option
+    there was.
+
+    So a single-image generation adopts itself, onto the placement it was generated for.
+    Asking for two or more still waits, because then the decision is real.
+
+    This also matches what the Generate screen already promises when pointed at an existing
+    design: "the result becomes this design's front artwork, replacing any it already has".
+  */
+  let adopted: string | null = null;
+  if (prediction.outputs.length === 1) {
+    const { data: only } = await db()
+      .from('design_variants')
+      .select('id')
+      .eq('design_id', designId)
+      .eq('label', job.payload.label ?? 'front')
+      .limit(2);
+
+    const rows = (only ?? []) as { id: string }[];
+    // Only when this placement has exactly one variant. A second generation onto a design
+    // that already has options for the same spot is back to being a choice.
+    if (rows.length === 1 && rows[0]) {
+      const result = await adoptVariant(designId, rows[0].id);
+      if (!('error' in result)) {
+        adopted = result.label;
+        // Size it to the print area now, the same as picking by hand does. A failure here
+        // leaves the artwork in place without a canvas, which the renderer and the push
+        // both cope with.
+        try {
+          await normaliseDesign(designId);
+        } catch {
+          // Reported by the design page, where the artwork simply has no canvas yet.
+        }
+      }
+    }
+  }
+
+  return NextResponse.json({
+    status: 'completed',
+    designId,
+    adopted,
+    variants: await variantsFor(designId),
+  });
 }
 
 async function variantsFor(designId: string) {

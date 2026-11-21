@@ -138,11 +138,21 @@ in, and it's where most of the per-design work happens. You get:
 - **Variants** — every image from that generation. Hit **Use this one** to make it the
   keeper, which moves the design to **Approved**. Each tile also has its own small
   **download** link, which is how you get an option you *didn't* pick out of the app.
-- **Artwork** panel (right) — the placements. **+ Add placement** uploads art for another
-  spot, picked from a dropdown: **front, back, pocket, left sleeve, right sleeve**. It opens
-  on the first one this design doesn't have yet, and an option already in use says so rather
-  than replacing it silently. **nudge position** moves the art on the garment if the
-  automatic placement isn't right.
+- **Artwork** panel (right) — what is actually on each placement. This is not where you
+  tell the app where the design goes: a variant already carries the placement you chose on
+  the Generate screen, and **Use this one** is what puts it there.
+
+  **+ Add placement** is for a *second* print — a different back, the same art on the
+  pocket. Choose the placement (**front, back, pocket, left sleeve, right sleeve**), then
+  where the image comes from:
+  - **An image this design has** — any artwork or variant it already holds, including ones
+    you didn't pick. The same file is used on both placements, not a copy; each is sized
+    and positioned on its own at push time.
+  - **A file from my computer** — art you made elsewhere.
+
+  It opens on the first placement the design doesn't have yet, and an option already in use
+  says so rather than replacing it silently. **nudge position** moves the art on the garment
+  if the automatic placement isn't right.
 
   A placement only reaches Printify if the product has a print area of the same name. Your
   Comfort Colors 1717 has **front** and **back** only — pocket and sleeve art will render on

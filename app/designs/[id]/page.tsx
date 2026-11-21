@@ -160,7 +160,7 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
         </div>
 
         <aside className="space-y-4">
-          <ArtworkPanel designId={design.id} artworks={artworks} />
+          <ArtworkPanel designId={design.id} artworks={artworks} variants={variants} />
 
           <section className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
             <h2 className="mb-3 text-sm font-semibold">Provenance</h2>

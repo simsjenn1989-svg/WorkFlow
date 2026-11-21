@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/lib/supabase';
 import { filesOwnedByDesign, removeAll } from '@/lib/storage';
+import { putArtwork } from '@/lib/artworks';
 import { isStage, nextStage, previousStage, type Stage } from '@/lib/stages';
 
 /** Shape returned by every action so the UI can show a message without throwing. */
@@ -141,6 +142,59 @@ export async function createIdea(form: FormData): Promise<ActionResult> {
   if (error) return fail(`Saving the idea failed: ${error.message}`);
 
   revalidatePath('/');
+  return { ok: true };
+}
+
+const assignSchema = z.object({
+  designId: z.string().uuid(),
+  label: z.string().trim().min(1).max(40),
+  source: z.string().regex(/^(variant|artwork):[0-9a-f-]{36}$/),
+});
+
+/**
+ * Put an image the design already has onto another placement.
+ *
+ * The Add-placement form only took a file upload, which meant the same art on the front and
+ * the back — or a shrunk copy on the pocket — required downloading the design and uploading
+ * it back again. Worse, the form looked like the place you tell the app where the design
+ * goes, so it was the first thing to reach for and then asked for a file that already
+ * existed inside the app.
+ *
+ * The image is shared, not copied: both placements point at one stored file. That is right
+ * because it IS one image, and because the print-ready version is built per placement at
+ * push time from its own rules, so sharing the source costs nothing downstream.
+ */
+export async function assignArtwork(
+  designId: string,
+  label: string,
+  source: string,
+): Promise<ActionResult> {
+  const parsed = assignSchema.safeParse({ designId, label, source });
+  if (!parsed.success) return fail('That placement or image is not valid.');
+
+  const [kind, id] = parsed.data.source.split(':') as ['variant' | 'artwork', string];
+  const table = kind === 'variant' ? 'design_variants' : 'design_artworks';
+
+  // Read the path from the database rather than trusting one sent by the browser, and scope
+  // it to this design: without the design_id check, any stored file could be attached to
+  // any design by editing the request.
+  const { data: row } = await db()
+    .from(table)
+    .select('image_path')
+    .eq('id', id)
+    .eq('design_id', parsed.data.designId)
+    .maybeSingle();
+  if (!row) return fail('That image does not belong to this design.');
+
+  const { error } = await putArtwork({
+    designId: parsed.data.designId,
+    label: parsed.data.label,
+    imagePath: (row as { image_path: string }).image_path,
+  });
+  if (error) return fail(`Adding the placement failed: ${error}`);
+
+  revalidatePath('/');
+  revalidatePath(`/designs/${parsed.data.designId}`);
   return { ok: true };
 }
 

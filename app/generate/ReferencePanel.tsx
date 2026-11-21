@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { STYLES, buildReferencePrompt } from '@/lib/styles';
+import { STYLES, buildReferencePrompt, styleById } from '@/lib/styles';
 import { checkFiles, uploadFiles } from '@/lib/upload-client';
 
 export type Reference = { path: string; url: string; name: string };
@@ -27,9 +27,14 @@ export function ReferencePanel({
   const [styleId, setStyleId] = useState(STYLES[0]!.id);
   const [extra, setExtra] = useState('');
   const [keepLettering, setKeepLettering] = useState(true);
+  // Off by default: motifs are props bolted onto whatever the subject is, and leaving them
+  // on makes every design in a style look like the last one.
+  const [includeMotifs, setIncludeMotifs] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const motifs = styleById(styleId)?.motifs ?? null;
 
   async function upload(file: File) {
     const problem = checkFiles([file]);
@@ -44,7 +49,7 @@ export function ReferencePanel({
       if (!uploaded) throw new Error('Upload failed.');
       // A local preview, so the panel shows the picture without another round trip.
       onReference({ path: uploaded.path, url: URL.createObjectURL(file), name: file.name });
-      write(styleId, extra, keepLettering);
+      write(styleId, extra, keepLettering, includeMotifs);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -52,8 +57,15 @@ export function ReferencePanel({
     }
   }
 
-  function write(style: string, more: string, lettering: boolean) {
-    onPrompt(buildReferencePrompt({ styleId: style, extra: more, keepLettering: lettering }));
+  function write(style: string, more: string, lettering: boolean, motifs: boolean) {
+    onPrompt(
+      buildReferencePrompt({
+        styleId: style,
+        extra: more,
+        keepLettering: lettering,
+        includeMotifs: motifs,
+      }),
+    );
   }
 
   return (
@@ -80,7 +92,7 @@ export function ReferencePanel({
                 value={styleId}
                 onChange={(e) => {
                   setStyleId(e.target.value);
-                  write(e.target.value, extra, keepLettering);
+                  write(e.target.value, extra, keepLettering, includeMotifs);
                 }}
               >
                 {STYLES.map((style) => (
@@ -98,7 +110,7 @@ export function ReferencePanel({
               value={extra}
               onChange={(e) => {
                 setExtra(e.target.value);
-                write(styleId, e.target.value, keepLettering);
+                write(styleId, e.target.value, keepLettering, includeMotifs);
               }}
             />
 
@@ -109,7 +121,7 @@ export function ReferencePanel({
                   checked={keepLettering}
                   onChange={(e) => {
                     setKeepLettering(e.target.checked);
-                    write(styleId, extra, e.target.checked);
+                    write(styleId, extra, e.target.checked, includeMotifs);
                   }}
                 />
                 keep the wording
@@ -124,6 +136,29 @@ export function ReferencePanel({
                 remove reference
               </button>
             </div>
+
+            {/*
+              Motifs are listed, not just toggled. A style that silently drew extra objects
+              into every design is how a trademarked smiley ended up on a garment: the word
+              lived in a prompt nobody could see. Naming them makes the choice reviewable.
+            */}
+            {motifs ? (
+              <label className="flex items-start gap-1.5 text-[11px] leading-relaxed text-zinc-400">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={includeMotifs}
+                  onChange={(e) => {
+                    setIncludeMotifs(e.target.checked);
+                    write(styleId, extra, keepLettering, e.target.checked);
+                  }}
+                />
+                <span>
+                  add this style&rsquo;s motifs
+                  <span className="text-zinc-600"> — {motifs}</span>
+                </span>
+              </label>
+            ) : null}
           </div>
         </div>
       ) : (

@@ -905,8 +905,26 @@ The emoji in `lib/listings/prompt.ts` and `lib/copy/system-prompt.ts` were left 
 are Unicode characters in listing text — the shop's own house style ends a hook with one —
 not a drawn mark on a product, and the two are not the same question.
 
-Worth noting the wider shape of this: 9 of the 13 styles inject specific motifs (mushrooms,
-cactuses, butterflies, speech bubbles). None of the rest carry the same trademark problem,
-but they do mean every design in a style gets the same props whether the subject wants them
-or not, which is a separate conversation about whether style should mean grammar or
-decoration.
+### Grammar and motifs, split
+
+The smiley was a symptom. 9 of the 13 styles injected objects — mushrooms, cactuses,
+butterflies, speech bubbles — into every design that used them, which meant two problems at
+once: designs in a style all came out looking like each other, and anything in that list
+reached a garment without ever appearing on screen.
+
+A style is now two fields:
+
+  grammar   how it is DRAWN — palette, line quality, finish, era. Always applied, no objects.
+  motifs    objects added to the design. Off by default, and listed by name next to the
+            checkbox so the choice can be read before it is made.
+
+With motifs off the brief also says "add no extra decorative objects that are not already in
+the reference", because silence is not an instruction to an image model.
+
+Re-run on the same Santa reference with Preppy and motifs off: pink and green pastels, bold
+clean outlines, the original snow, trees and wording kept, the stars that were already in the
+reference kept, and nothing invented. Four styles — Vintage distressed, Kawaii, Minimal line,
+Watercolour — carry no motifs at all, and show no checkbox.
+
+The rule the comment now states: nothing in `grammar` may name a recognisable character, logo
+or mark, and motifs stay generic — "stars", not a particular star somebody owns.

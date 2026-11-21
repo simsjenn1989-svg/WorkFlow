@@ -194,7 +194,15 @@ export function buildReferencePrompt(brief: ReferenceBrief): string {
       ? 'Keep the same wording, redrawn as lettering that belongs to this style.'
       : 'Leave out all text and lettering; illustration only.',
     'Flat vector-style illustration suitable for screen printing on a dark garment.',
-    'Clean transparent background, no background fill, no scene, no shadow, no mockup, no frame.',
+    'No scene, no shadow, no mockup, no frame.',
+    // A chroma colour rather than "transparent background", because the best models for this
+    // cannot output transparency — only 8 of Atlas's 84 can, and none of the good ones. Asked
+    // for a dark background they draw a near-black rectangle, and a border flood cannot
+    // remove the pockets of it enclosed by the subject, so one survived between Santa's arm
+    // and a reindeer. Pure magenta is removable everywhere at once because nothing in the
+    // artwork is that colour, enclosed or not.
+    'Place the artwork on a completely solid flat background of pure magenta RGB(255, 0, 255).',
+    'The magenta must be one uniform colour with no gradient, texture or shading, and must not appear anywhere in the artwork itself.',
   ]
     .filter(Boolean)
     .join(' ');

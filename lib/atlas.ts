@@ -171,11 +171,31 @@ export async function listEditModels(): Promise<AtlasModel[]> {
 /**
  * The default for redrawing a reference.
  *
- * $0.008, outputs a transparent background, and the same family already used for
- * text-to-image here — so a design redrawn in a new style comes out looking like it came
- * from the same shop.
+ * Nano Banana 2.1, at $0.018 and up to 4k, after the gpt-image edit models were judged
+ * mediocre on real output.
+ *
+ * It cannot produce a transparent background — no Nano Banana variant publishes a
+ * `background` field, and only 8 of the 84 image-to-image models do at all. For a garment
+ * print that matters, so the background is cut afterwards; see `lib/cutout.ts`.
  */
-export const PREFERRED_EDIT_MODEL = 'openai/gpt-image-2.6-flare/edit';
+export const PREFERRED_EDIT_MODEL = 'google/nano-banana-2.1-developer/edit';
+
+/**
+ * Which field this model takes its reference image in.
+ *
+ * Not standardised across the catalogue: the gpt-image edit models use `images`, Nano Banana
+ * uses `reference_images`, Qwen uses `reference_image_urls`. Sending the wrong one is not an
+ * error — the field is ignored and the model invents something from the prompt alone, which
+ * looks like a bad redraw rather than a bug.
+ */
+export function referenceField(fields: AtlasField[]): string | null {
+  const names = fields.map((f) => f.name);
+  return (
+    ['images', 'reference_images', 'reference_image_urls', 'image_urls', 'image'].find((n) =>
+      names.includes(n),
+    ) ?? null
+  );
+}
 
 /** Every text-to-image model Atlas currently offers. */
 export async function listImageModels(): Promise<AtlasModel[]> {

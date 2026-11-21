@@ -928,3 +928,44 @@ Watercolour — carry no motifs at all, and show no checkbox.
 
 The rule the comment now states: nothing in `grammar` may name a recognisable character, logo
 or mark, and motifs stay generic — "stars", not a particular star somebody owns.
+
+### Nano Banana, and the background it cannot leave out
+
+`openai/gpt-image-2.6-flare/edit` was judged mediocre on real output and replaced with
+`google/nano-banana-2.1-developer/edit` — $0.018, up to 4k, visibly cleaner linework. Two
+things had to change for it to work at all.
+
+**The reference field is not standard.** gpt-image takes `images`, Nano Banana takes
+`reference_images`, Qwen takes `reference_image_urls`. Sending the wrong one is not an error:
+the field is ignored and the model invents from the prompt alone, which reads as a bad redraw
+rather than a bug. The field is now read from the model's own schema.
+
+**No Nano Banana variant can output transparency.** None of the 16 publishes a `background`
+field; only 8 of all 84 image-to-image models do, and none of the good ones. Asked for art
+"for screen printing on a dark garment" it drew the design on a solid near-black rectangle —
+which prints as a full block of ink across the print area.
+
+A border flood fill was the obvious free fix and it half worked: the outer background went,
+and a pocket of black trapped between Santa's arm and a reindeer stayed, because a flood from
+outside cannot reach an enclosed region. Removing every black pixel instead would have taken
+his boots and gloves with it.
+
+So the prompt now asks for **pure magenta** and the cutout keys it. A colour chosen because
+nothing in the artwork uses it can be removed everywhere at once, enclosed or not.
+
+**Distance to the screen colour is the wrong test.** The first keyer measured summed channel
+difference and turned a pink Santa grey: against magenta (252,3,250) a preppy pink of
+(240,110,160) is only 209 away, which put it inside the feather band and sent it through
+despill. Any tolerance wide enough to catch an anti-aliased rim is wide enough to catch real
+colours.
+
+What separates them is the shape of the colour, not the distance. A magenta screen has red
+and blue far above green; pink has the same bias far more weakly — 247 against 50 on those
+two pixels. Scoring that gap against the screen's own gives a ratio with daylight in it, and
+keying on the ratio left the artwork untouched: **0 residual magenta pixels, 3.7% of visible
+pixels still partially transparent** so anti-aliasing survives.
+
+The cutout runs at collection time, not print time, so the stored variant has the same shape
+whichever model made it and everything downstream behaves identically. It is skipped when the
+image already has real transparency, and abandoned if it would remove more than 97% — a
+cutout that eats the subject should leave the original rather than a blank.

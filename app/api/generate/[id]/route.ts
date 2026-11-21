@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { BUCKET, db } from '@/lib/supabase';
 import { chargedCents, downloadOutput, getPrediction, isAtlasConfigured } from '@/lib/atlas';
 import { judgeFailure } from '@/lib/collect';
+import { cutBackground, needsCutout } from '@/lib/cutout';
 
 export const runtime = 'nodejs';
 
@@ -130,8 +131,32 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   for (const [index, url] of prediction.outputs.entries()) {
     if (have.has(index)) continue;
     try {
-      const { bytes, contentType } = await downloadOutput(url);
+      const downloaded = await downloadOutput(url);
       const variantId = randomUUID();
+
+      // Cut the background when the model could not leave one out.
+      //
+      // Only 8 of Atlas's 84 image-to-image models can output transparency, and the best of
+      // them for this work is not among them — it draws the art on the solid magenta screen
+      // the prompt asks for. Cutting here rather than at print time means the variant stored
+      // is the same shape whichever model made it, so the board, the mockup renderer and the
+      // print-ready step all behave identically.
+      let bytes: Buffer | Uint8Array = downloaded.bytes;
+      let contentType = downloaded.contentType;
+      if (await needsCutout(Buffer.from(downloaded.bytes))) {
+        try {
+          const cut = await cutBackground(Buffer.from(downloaded.bytes));
+          // A cutout that removes nearly everything has keyed the subject by mistake; the
+          // original is better than a blank. Over 97% gone is not a plausible margin.
+          if (cut.removed < 0.97) {
+            bytes = cut.png;
+            contentType = 'image/png';
+          }
+        } catch {
+          // A failed cutout is not a failed generation; the image is still usable by hand.
+        }
+      }
+
       const extension = contentType.includes('webp') ? 'webp' : contentType.includes('jpeg') ? 'jpg' : 'png';
       const path = `designs/${designId}/variants/${variantId}.${extension}`;
 

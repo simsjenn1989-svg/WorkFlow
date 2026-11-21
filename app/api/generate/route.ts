@@ -3,7 +3,14 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { db, signedUrl } from '@/lib/supabase';
 import { assertWithinBudget } from '@/lib/budget';
-import { estimateCents, getModel, isAtlasConfigured, startGeneration } from '@/lib/atlas';
+import {
+  estimateCents,
+  getModel,
+  getModelFields,
+  isAtlasConfigured,
+  referenceField,
+  startGeneration,
+} from '@/lib/atlas';
 import { normaliseLabel, PRIMARY_LABEL } from '@/lib/artworks';
 
 export const runtime = 'nodejs';
@@ -103,18 +110,28 @@ export async function POST(request: Request) {
     // A reference turns this into an edit: the same endpoint, with the image alongside the
     // prompt. Atlas's edit models take `images` as an array of URLs, so the stored file is
     // handed over signed rather than uploaded again.
-    let reference: string[] | undefined;
+    let reference: Record<string, string[]> = {};
     if (input.referencePath) {
       const url = await signedUrl(input.referencePath, 3600);
       if (!url) {
         return NextResponse.json({ error: 'That reference image could not be read.' }, { status: 400 });
       }
-      reference = [url];
+      // The field name differs by model — `images`, `reference_images`,
+      // `reference_image_urls` — and sending the wrong one is silently ignored rather than
+      // rejected, so the model invents from the prompt alone and it reads as a bad redraw.
+      const field = referenceField(await getModelFields(model));
+      if (!field) {
+        return NextResponse.json(
+          { error: `${model.displayName} does not take a reference image.` },
+          { status: 400 },
+        );
+      }
+      reference = { [field]: [url] };
     }
 
     const prediction = await startGeneration(model.model, input.prompt, {
       ...input.params,
-      ...(reference ? { images: reference } : {}),
+      ...reference,
       n: input.count,
     });
     predictionId = prediction.id;

@@ -3,12 +3,21 @@
 import { useState, useTransition } from 'react';
 import { chooseVariant } from '@/app/generate/actions';
 import type { Variant } from '@/lib/queries';
+import { asDownload, downloadName } from '@/lib/download';
 
 /**
  * Pick the keeper from a generation. Choosing sets the design's image and moves it to
  * Approved; the others stay on record so the decision can be revisited later.
  */
-export function VariantPicker({ designId, variants }: { designId: string; variants: Variant[] }) {
+export function VariantPicker({
+  designId,
+  title,
+  variants,
+}: {
+  designId: string;
+  title: string;
+  variants: Variant[];
+}) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -29,7 +38,7 @@ export function VariantPicker({ designId, variants }: { designId: string; varian
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {variants.map((variant) => (
+        {variants.map((variant, index) => (
           <div
             key={variant.id}
             className={`overflow-hidden rounded-md border transition ${
@@ -52,8 +61,21 @@ export function VariantPicker({ designId, variants }: { designId: string; varian
                 </div>
               )}
             </div>
-            <p className="truncate bg-zinc-950 px-2 py-0.5 text-[10px] text-zinc-500">
-              {variant.label}
+            <p className="flex items-baseline justify-between gap-2 bg-zinc-950 px-2 py-0.5 text-[10px] text-zinc-500">
+              <span className="truncate">{variant.label}</span>
+              {/*
+                Downloading an option you have not picked is the common case: it is how a
+                design leaves the app for anything the app does not do yet.
+              */}
+              {variant.url ? (
+                <a
+                  className="shrink-0 text-zinc-400 hover:text-zinc-100"
+                  href={asDownload(variant.url, downloadName(title, variant.url, `-${variant.label}-${index + 1}`))!}
+                  title="Download this one"
+                >
+                  download
+                </a>
+              ) : null}
             </p>
             <button
               className={`w-full px-2 py-1.5 text-[11px] ${

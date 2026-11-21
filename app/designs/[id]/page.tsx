@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { isConfigured } from '@/lib/supabase';
+import { asDownload, downloadName } from '@/lib/download';
 import { getDesign, getStageHistory, listCollections, thingsMadeFrom } from '@/lib/data';
 import { deleteDesign, updateDesign } from '@/app/actions';
 import { STAGE_META, timeIn } from '@/lib/stages';
@@ -49,22 +50,40 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-4">
-          <div className="overflow-hidden rounded-lg border border-zinc-800 bg-[repeating-conic-gradient(#27272a_0%_25%,#18181b_0%_50%)] bg-[length:20px_20px]">
+          <div className="space-y-2">
+            <div className="overflow-hidden rounded-lg border border-zinc-800 bg-[repeating-conic-gradient(#27272a_0%_25%,#18181b_0%_50%)] bg-[length:20px_20px]">
+              {design.image_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={design.image_url}
+                  alt={design.title}
+                  className="max-h-[60vh] w-full object-contain"
+                />
+              ) : (
+                <div className="flex h-64 items-center justify-center text-sm text-zinc-600">
+                  No image yet
+                </div>
+              )}
+            </div>
+
             {design.image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={design.image_url}
-                alt={design.title}
-                className="max-h-[60vh] w-full object-contain"
-              />
-            ) : (
-              <div className="flex h-64 items-center justify-center text-sm text-zinc-600">
-                No image yet
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                <a
+                  className="btn"
+                  href={asDownload(design.image_url, downloadName(design.title, design.image_url))!}
+                >
+                  Download PNG
+                </a>
+                <span className="text-zinc-600">
+                  {artworks.length === 0
+                    ? 'The generated image, transparent background and all. Pick a keeper to use it on a product.'
+                    : 'The chosen artwork, at full size.'}
+                </span>
               </div>
-            )}
+            ) : null}
           </div>
 
-          <VariantPicker designId={design.id} variants={variants} />
+          <VariantPicker designId={design.id} title={design.title} variants={variants} />
 
           <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
             <StageControls designId={design.id} stage={design.stage} />

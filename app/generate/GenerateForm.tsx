@@ -439,7 +439,7 @@ export function GenerateForm({
               <option value="">A new design</option>
               {designs.map((d) => (
                 <option key={d.id} value={d.id}>
-                  {d.title} ({d.artwork_labels.join(', ')})
+                  {d.title} ({d.artwork_labels.join(', ') || 'idea, no art yet'})
                 </option>
               ))}
             </select>
@@ -447,8 +447,9 @@ export function GenerateForm({
 
           {targetDesignId ? (
             <p className="text-[11px] leading-relaxed text-zinc-600">
-              The result becomes this design&rsquo;s {label || 'front'} artwork, replacing any
-              it already has for that placement.
+              {designs.find((d) => d.id === targetDesignId)?.artwork_labels.length === 0
+                ? `This idea becomes a real design: the images land on it as ${label || 'front'} artwork and the card moves to Generated.`
+                : `The result becomes this design's ${label || 'front'} artwork, replacing any it already has for that placement.`}
             </p>
           ) : (
             <label className="block space-y-1 text-xs text-zinc-400">
@@ -474,10 +475,16 @@ export function GenerateForm({
           </label>
         </section>
 
+        {/*
+          Two things arrive here prefilled, and they are not the same news. A retry comes
+          from a generation that failed; an idea has never run at all, and telling someone
+          their idea failed is alarming for no reason.
+        */}
         {restored !== null ? (
           <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-[11px] leading-relaxed text-amber-200">
-            Filled in from the generation that failed. Nothing has run and nothing has been
-            charged — check the settings and the price, then generate when you are ready.
+            {designs.find((d) => d.id === restored)?.artwork_labels.length === 0
+              ? 'Filled in from your idea. Nothing has run and nothing has been charged — edit the prompt, check the price, then generate when you are ready.'
+              : 'Filled in from the generation that failed. Nothing has run and nothing has been charged — check the settings and the price, then generate when you are ready.'}
           </p>
         ) : null}
 

@@ -29,7 +29,7 @@ tells you what it's waiting for:
 
 | Column | What it means | What to do |
 |---|---|---|
-| **Idea** | A design with no art yet | Nothing creates one — see below |
+| **Idea** | Written down, not made yet | **Generate this** on the card |
 | **Generated** | Images came back | Pick the keeper |
 | **Approved** | A keeper is chosen | Render mockups, or push a draft |
 | **Print ready** | Sized for the blueprint | (optional — the push does this for you) |
@@ -59,15 +59,22 @@ At the top: **Search** by title, filter by **Collection** or **Tag**, then **App
 **+ Add designs** uploads artwork you made elsewhere. It starts at **Approved**, because
 the art already exists — it skips Generated entirely.
 
-### Nothing puts a card in Idea
+**+ New idea** writes down something you intend to make, before it exists. Title, the idea
+itself in a sentence or two, optional collection and tags. It lands in **Idea** with no
+image, and nothing is charged.
 
-Worth knowing, because the column sits there looking like an inbox. Generating creates a
-card at **Generated**; uploading creates one at **Approved**. The only things that land in
-**Idea** are a generation that failed or timed out — the empty card it left is sent back
-there rather than stranded in Generated — and a design you move there yourself with **←
-Back** or **Jump to**.
+The card then carries a **Generate this** button. That opens the Generate screen with your
+own words already in the prompt and **Add to** pointing at that card, so the images land on
+the idea you wrote rather than creating a second design. The card moves to **Generated**
+when they arrive, and back to **Idea** by itself if the generation fails.
 
-An idea you haven't made yet lives on the **Prompts** screen, as a saved prompt.
+Three ways in, then, and they start in different places:
+
+| | Starts at |
+|---|---|
+| **+ New idea** | Idea |
+| **Generate** | Generated |
+| **+ Add designs** (upload) | Approved |
 
 Clicking any card opens that design — see step 3.
 

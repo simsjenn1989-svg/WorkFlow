@@ -34,6 +34,9 @@ function describe(design: DesignCard): { empty: string; badge: string | null; to
       tone: 'bg-amber-500/20 text-amber-200',
     };
   }
+  if (design.stage === 'idea') {
+    return { empty: design.notes?.trim() || 'Not generated yet', badge: null, tone: '' };
+  }
   return { empty: 'No image yet', badge: null, tone: '' };
 }
 
@@ -48,8 +51,21 @@ function retryHref(design: DesignCard): Route {
   return `/generate?${params}` as Route;
 }
 
+/** Generate, prefilled from the idea's own words, onto the same design. */
+function generateHref(design: DesignCard): Route {
+  const params = new URLSearchParams({
+    designId: design.id,
+    // The notes are the draft prompt; the title is the fallback, because an idea written as
+    // a title alone is still an idea.
+    prompt: design.notes?.trim() || design.title,
+  });
+  return `/generate?${params}` as Route;
+}
+
 export function DesignTile({ design }: { design: DesignCard }) {
   const status = describe(design);
+  // An idea has nothing to retry and no image to pick; what it needs is to be made.
+  const waiting = design.stage === 'idea' && !design.job && design.artwork_labels.length === 0;
   return (
     // The card is a link, but Retry is a second destination, so the two are siblings inside
     // a positioned wrapper rather than one nested in the other: a link inside a link is
@@ -129,6 +145,16 @@ export function DesignTile({ design }: { design: DesignCard }) {
                      font-medium text-zinc-900 hover:bg-white"
         >
           Retry
+        </Link>
+      ) : null}
+
+      {waiting ? (
+        <Link
+          href={generateHref(design)}
+          className="absolute right-1.5 top-1.5 z-10 rounded bg-zinc-200 px-2 py-0.5 text-[10px]
+                     font-medium text-zinc-900 hover:bg-white"
+        >
+          Generate this
         </Link>
       ) : null}
     </div>

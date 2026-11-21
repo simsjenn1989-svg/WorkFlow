@@ -85,6 +85,8 @@ export async function POST(request: Request) {
   const label = normaliseLabel(input.label);
   const createdDesign = !input.designId;
   let designId = input.designId ?? '';
+  /** Set when this generation moved an existing idea into Generated, so failure can undo it. */
+  let startedFromIdea = false;
 
   if (createdDesign) {
     designId = randomUUID();
@@ -107,10 +109,27 @@ export async function POST(request: Request) {
   } else {
     const { data: existing } = await db()
       .from('designs')
-      .select('id')
+      .select('id,stage')
       .eq('id', designId)
       .maybeSingle();
     if (!existing) return NextResponse.json({ error: 'No such design.' }, { status: 404 });
+
+    // An idea is a design with nothing in it yet, so generating onto one is the moment it
+    // becomes real: it moves to Generated and starts carrying the provenance a generated
+    // design has. Without this the images arrive and the card stays in the first column,
+    // which is worse than not being able to point a generation at it at all.
+    if ((existing as { stage: string }).stage === 'idea') {
+      startedFromIdea = true;
+      await db()
+        .from('designs')
+        .update({
+          stage: 'generated',
+          source_model: model.model,
+          source_params: { ...input.params, prompt, n: input.count },
+          prompt_id: input.promptId,
+        })
+        .eq('id', designId);
+    }
   }
 
   let predictionId: string;
@@ -147,6 +166,7 @@ export async function POST(request: Request) {
     // Nothing was generated, so don't leave an empty card sitting on the board. An existing
     // design is left alone — it has art already.
     if (createdDesign) await db().from('designs').delete().eq('id', designId);
+    else if (startedFromIdea) await db().from('designs').update({ stage: 'idea' }).eq('id', designId);
     return NextResponse.json({ error: (error as Error).message }, { status: 502 });
   }
 
@@ -164,6 +184,10 @@ export async function POST(request: Request) {
       count: input.count,
       label,
       createdDesign,
+      // Whether a failure should send the design back to Idea. True for a design this
+      // generation created, and also for an idea it moved out of Idea — which
+      // `createdDesign` alone cannot express, since the design was already there.
+      revertToIdea: createdDesign || startedFromIdea,
       prompt,
       params: input.params,
       referencePath: input.referencePath,

@@ -26,6 +26,7 @@ type JobRow = {
     count: number;
     label?: string;
     createdDesign?: boolean;
+    revertToIdea?: boolean;
   };
 };
 
@@ -54,6 +55,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if (!job) return NextResponse.json({ error: 'No such generation.' }, { status: 404 });
 
   const { designId } = job.payload;
+  // Older jobs predate `revertToIdea` and only recorded whether the design was created
+  // here, which meant the same thing at the time.
+  const revertToIdea = job.payload.revertToIdea ?? job.payload.createdDesign !== false;
 
   if (job.status === 'done') {
     return NextResponse.json({ status: 'completed', designId, variants: await variantsFor(designId) });
@@ -78,7 +82,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     if (!permanent) {
       return NextResponse.json({ status: 'processing', designId, note: message });
     }
-    await failJob(job.id, designId, message, job.payload.createdDesign !== false);
+    await failJob(job.id, designId, message, revertToIdea);
     return NextResponse.json({ status: 'failed', designId, error: message });
   }
 
@@ -86,7 +90,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     if (!stale) return NextResponse.json({ status: prediction.status, designId });
 
     const message = `Atlas was still working after ${Math.round(TIMEOUT_MS / 60000)} minutes. Nothing was charged — try again.`;
-    await failJob(job.id, designId, message, job.payload.createdDesign !== false);
+    await failJob(job.id, designId, message, revertToIdea);
     return NextResponse.json({ status: 'failed', designId, error: message });
   }
 
@@ -97,7 +101,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       .eq('id', job.id);
     // A design created for this generation has no art, so it goes back to being an idea
     // rather than a dead card. One that already had art keeps its stage.
-    if (job.payload.createdDesign !== false) {
+    if (revertToIdea) {
       await db().from('designs').update({ stage: 'idea' }).eq('id', designId);
     }
     return NextResponse.json({
@@ -252,20 +256,21 @@ async function variantsFor(designId: string) {
  * charge: cost is recorded when images are collected, so a job that never produced any has
  * never counted against the month.
  *
- * A design created for this generation goes back to being an idea rather than sitting in
- * Generated as a card that will never fill. One that already had art keeps its stage.
+ * A design this generation created, or an idea it moved out of Idea, goes back to being an
+ * idea rather than sitting in Generated as a card that will never fill. One that already
+ * had art keeps its stage.
  */
 async function failJob(
   jobId: string,
   designId: string,
   error: string,
-  createdDesign: boolean,
+  revertToIdea: boolean,
 ): Promise<void> {
   await db()
     .from('jobs')
     .update({ status: 'failed', error, finished_at: new Date().toISOString() })
     .eq('id', jobId);
-  if (createdDesign) {
+  if (revertToIdea) {
     await db().from('designs').update({ stage: 'idea' }).eq('id', designId).eq('stage', 'generated');
   }
 }

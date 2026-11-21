@@ -4,6 +4,7 @@ import { STAGES, STAGE_META, TERMINAL_STAGES, type Stage } from '@/lib/stages';
 import { DesignTile } from '@/components/DesignTile';
 import { FilterBar } from '@/components/FilterBar';
 import { UploadPanel } from '@/components/UploadPanel';
+import { IdeaPanel } from '@/components/IdeaPanel';
 import type { DesignCard } from '@/lib/types';
 import { SetupNotice } from '@/app/setup/SetupNotice';
 
@@ -41,7 +42,10 @@ export default async function BoardPage({
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex flex-wrap items-end justify-between gap-4 px-5 py-4">
         <FilterBar collections={collections} tags={tags} active={filter} />
-        <UploadPanel collections={collections} />
+        <div className="flex flex-wrap items-start gap-2">
+          <IdeaPanel collections={collections} />
+          <UploadPanel collections={collections} />
+        </div>
       </div>
 
       {total === 0 ? (
@@ -95,7 +99,7 @@ function EmptyBoard({ filtered }: { filtered: boolean }) {
         <p className="text-xs leading-relaxed text-zinc-500">
           {filtered
             ? 'Clear the filters to see the whole board.'
-            : 'Add designs to get started. They land in Approved, and you move them rightward as each step is done.'}
+            : 'Start with an idea, generate one, or upload art you already have. Ideas land in Idea, uploads in Approved, and you move them rightward as each step is done.'}
         </p>
       </div>
     </div>

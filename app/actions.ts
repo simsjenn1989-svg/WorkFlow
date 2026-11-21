@@ -101,6 +101,49 @@ export async function deleteDesign(designId: string): Promise<ActionResult> {
   return { ok: true };
 }
 
+const ideaSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  notes: z.string().trim().max(5000).nullable(),
+  collectionId: z.string().uuid().nullable(),
+  tags: z.array(z.string().trim().min(1).max(60)).max(40),
+});
+
+/**
+ * A design you intend to make, before any image exists.
+ *
+ * Idea was the one column nothing could reach. Generating starts a design at Generated and
+ * uploading starts it at Approved, so the first column on the board sat there looking like
+ * an inbox while the only things that ever arrived in it were generations that had failed.
+ * An idea written down somewhere other than the board is an idea you stop seeing.
+ *
+ * The notes field doubles as the draft prompt: the card's "Generate this" link carries it
+ * into the Generate form, which is why the two are not kept apart.
+ */
+export async function createIdea(form: FormData): Promise<ActionResult> {
+  const parsed = ideaSchema.safeParse({
+    title: form.get('title'),
+    notes: (form.get('notes') as string)?.trim() || null,
+    collectionId: (form.get('collectionId') as string) || null,
+    tags: String(form.get('tags') ?? '')
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean),
+  });
+  if (!parsed.success) return fail('An idea needs a title.');
+
+  const { error } = await db().from('designs').insert({
+    title: parsed.data.title,
+    notes: parsed.data.notes,
+    collection_id: parsed.data.collectionId,
+    tags: parsed.data.tags,
+    stage: 'idea',
+  });
+  if (error) return fail(`Saving the idea failed: ${error.message}`);
+
+  revalidatePath('/');
+  return { ok: true };
+}
+
 const collectionSchema = z.object({
   name: z.string().trim().min(1).max(120),
   theme: z.string().trim().max(200).nullable(),

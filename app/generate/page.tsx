@@ -42,10 +42,13 @@ export default async function GeneratePage() {
     boardData(),
   ]);
 
-  // Designs that already have artwork, so a new placement can be added to one.
+  // What a generation can be pointed at: a design that already has artwork, so a second
+  // placement can be added to it, or an idea waiting to be made. Ideas were missing, which
+  // meant a card's "Generate this" link arrived here and silently fell back to creating a
+  // second design — leaving the idea sitting in the first column for ever.
   const designs = Object.values(board)
     .flat()
-    .filter((d) => d.artwork_labels.length > 0)
+    .filter((d) => d.artwork_labels.length > 0 || d.stage === 'idea')
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
 
   const defaultModel = models.some((m) => m.model === PREFERRED)

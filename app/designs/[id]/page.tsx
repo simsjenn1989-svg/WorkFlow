@@ -34,6 +34,8 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
     thingsMadeFrom(id),
   ]);
   const meta = STAGE_META[design.stage];
+  /** Placements the unpicked variants are for — the choice made when they were generated. */
+  const pending = [...new Set(variants.filter((v) => !v.chosen).map((v) => v.label))];
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 px-5 py-6">
@@ -168,9 +170,18 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
               <Row label="Model" value={design.source_model} />
               <Row label="Seed" value={design.seed} />
               <Row label="Created" value={new Date(design.created_at).toLocaleString()} />
+              {/*
+                A variant carries the placement chosen on the Generate screen, and that is
+                what it becomes when it is picked. Saying "none yet" while a variant sits
+                there labelled `back` reads as though the choice was thrown away, which is
+                how this looked to the person using it.
+              */}
               <Row
                 label="Placements"
-                value={design.artwork_labels.join(', ') || 'none yet'}
+                value={
+                  design.artwork_labels.join(', ') ||
+                  (pending.length > 0 ? `${pending.join(', ')} — once a keeper is picked` : 'none yet')
+                }
               />
             </dl>
             {!design.source_model ? (

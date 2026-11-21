@@ -31,7 +31,15 @@ export function VariantPicker({
     <section className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
       <div className="flex items-baseline justify-between">
         <h2 className="text-sm font-semibold">
-          {variants.length} variant{variants.length === 1 ? '' : 's'}
+          {variants.length} variant{variants.length === 1 ? '' : 's'}{' '}
+          {/*
+            Which placement these are for, stated once rather than only in the tiny caption
+            under each tile. It was chosen on the Generate screen and is what picking one
+            will set, so it belongs where the decision is being made.
+          */}
+          <span className="ml-1.5 font-normal text-zinc-500">
+            for {[...new Set(variants.map((v) => v.label))].join(', ')}
+          </span>
         </h2>
         <p className="text-[11px] text-zinc-500">
           {preparing

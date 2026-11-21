@@ -39,14 +39,27 @@ tells you what it's waiting for:
 | **Polished** | Listing copy applied | **Your turn** — review and publish |
 | **Published** | Live | Done |
 
-Two more exist off to the side: **Rejected** and **Archived**, for things you want out of
-the way without deleting.
+**Rejected** and **Archived** are two more stages, for things you want out of the way
+without deleting. They have no columns until something is in them — put a design there with
+the **Jump to** dropdown (below), and the column appears.
+
+### Moving a card
+
+There is **no drag-and-drop**. A stage change is a deliberate act, so it's buttons, inside
+the opened design:
+
+- **← Back** — one stage left.
+- **Move to [next stage] →** — one stage right.
+- **Jump to** — a dropdown of every stage, including Rejected and Archived.
+
+Most of the pipeline moves cards for you — picking a keeper, finishing a render, pushing a
+draft — so these are for corrections and for the last step, which is yours.
 
 At the top: **Search** by title, filter by **Collection** or **Tag**, then **Apply**.
 **+ Add designs** uploads artwork you made elsewhere — it skips generation and lands in the
 pipeline like anything else.
 
-Clicking any card opens the design page.
+Clicking any card opens that design — see step 3.
 
 ---
 
@@ -98,9 +111,10 @@ minutes and offer **Retry**. Nothing is charged for a generation that produced n
 
 ---
 
-## 3. The design page — picking the keeper
+## 3. Opening a design — picking the keeper
 
-Click the card. You get:
+This one isn't in the nav. **Click a card on the Board** and it opens; that's the only way
+in, and it's where most of the per-design work happens. You get:
 
 - **The image**, on a checkerboard so you can see the transparency, with **Download PNG**
   underneath.
@@ -109,6 +123,7 @@ Click the card. You get:
   **download** link, which is how you get an option you *didn't* pick out of the app.
 - **Artwork** panel (right) — the placements. **+ Add placement** adds a back print;
   **nudge position** moves the art on the garment if the automatic placement isn't right.
+- **Stage buttons** — ← Back, Move to [next], and Jump to.
 - **Details** — title, collection, tags, notes.
 - **Provenance** — the model, seed and exact prompt that made it.
 - **History** — every stage change with timestamps.
@@ -175,10 +190,15 @@ A preset is the product: blueprint, print provider, sizes, prices, print areas. 
 Printify** pulls one in from your shop. Yours is **Comfort Colors 1717 — Black**, The
 Unfiltered Club, 7 sizes, front only, 4494×5097 px.
 
-Inside **edit** you can:
-- set the price and **apply it to every size** at once,
-- switch individual **placements** on and off (front-only is the default),
-- set the top drop and the maximum print size per placement.
+Inside **edit**:
+- **Sizes and prices** — a price box per size (S through 4XL), plus **set all to $ … apply**
+  to put one price on all seven at once.
+- **Print areas** — each placement is **printed** or **not printed** (back is off by
+  default, and when it's off *no placeholder is sent to Printify at all*). For a printed
+  one you set **top below collar**, **max width** and **max height**, in inches.
+  These are limits, not coordinates — the actual position is worked out per design from the
+  trimmed art.
+- **Use this preset by default**, then **Save changes**.
 
 ### Pushing
 
@@ -223,7 +243,9 @@ the draft**, then apply it. The design moves to **Polished**.
 ## 10. Publishing
 
 You do this. In Printify: check the mockups, check the copy, publish to Etsy or TikTok Shop.
-Then drag the card to **Published** on the Board so the pipeline matches reality.
+
+Then come back, open the card, and hit **Move to Published →** so the Board matches reality.
+Nothing else marks a design published — the app has no way to know you did it.
 
 ---
 

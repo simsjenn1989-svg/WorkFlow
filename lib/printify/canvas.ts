@@ -143,6 +143,15 @@ export async function normaliseDesign(
   rules?: Partial<PlacementRules>,
 ): Promise<{ label: string; error: string | null; result: CanvasResult | null }[]> {
   const area = await printAreaSize();
+  /*
+    The preset's own rules for each placement — the drop below the collar and the size caps
+    set in the preset editor.
+    Moving placement from push time to approval time quietly dropped these: the canvas was
+    built from DEFAULT_RULES and then sent whole, so changing "top below collar" in the
+    preset would have had no effect on anything. It has none today only because this shop's
+    preset overrides nothing.
+  */
+  const preset = await defaultPreset();
   const { data } = await db()
     .from('design_artworks')
     .select('id,label,image_path,print_ready_path')
@@ -165,7 +174,7 @@ export async function normaliseDesign(
       const built = await buildPrintCanvas(
         Buffer.from(await file.data.arrayBuffer()),
         area,
-        rules,
+        { ...preset?.placements[row.label], ...rules },
       );
 
       /*

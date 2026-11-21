@@ -34,6 +34,58 @@ export type MockupTemplate = {
   url: string | null;
 };
 
+/**
+ * A centred rectangle with the print area's own proportions.
+ *
+ * Corners are fractions of the IMAGE, so a square on screen is not a square in these
+ * numbers — the photo's aspect has to be divided back out or the area comes out stretched.
+ * That was the bug behind "why is there such a big margin": the default area was 0.28 by
+ * 0.28, which on a 4:3 photo is a 4:3 rectangle, and a portrait canvas warped into it had
+ * to shrink to fit, leaving empty space down both sides.
+ *
+ * `widthFraction` is how much of the photo's width the print covers. 0.3 is about right for
+ * a chest print on a model shot and is only a starting point — the corners are dragged onto
+ * the real garment afterwards.
+ */
+export function printAreaCorners(
+  imageAspect: number,
+  areaAspect: number,
+  centre: NormPoint = { x: 0.5, y: 0.47 },
+  widthFraction = 0.3,
+): NormQuad {
+  const halfWidth = widthFraction / 2;
+  // height / width = (1 / areaAspect) in real lengths; converting to image fractions
+  // multiplies by the image's own aspect.
+  const halfHeight = (halfWidth / areaAspect) * imageAspect;
+  return [
+    { x: centre.x - halfWidth, y: centre.y - halfHeight },
+    { x: centre.x + halfWidth, y: centre.y - halfHeight },
+    { x: centre.x + halfWidth, y: centre.y + halfHeight },
+    { x: centre.x - halfWidth, y: centre.y + halfHeight },
+  ];
+}
+
+/**
+ * Reshape an area to the print area's proportions, keeping where it is and how wide it is.
+ *
+ * Only sensible on a rectangle: once corners have been pulled into a perspective shape the
+ * "aspect" of the quad is not one number, and forcing it would throw away the fit to the
+ * garment. So this is a button rather than a constraint — mark the shape, snap it, then
+ * fine-tune.
+ */
+export function snapToPrintAspect(
+  corners: NormQuad,
+  imageAspect: number,
+  areaAspect: number,
+): NormQuad {
+  const centre = {
+    x: (corners[0].x + corners[1].x + corners[2].x + corners[3].x) / 4,
+    y: (corners[0].y + corners[1].y + corners[2].y + corners[3].y) / 4,
+  };
+  const width = (Math.abs(corners[1].x - corners[0].x) + Math.abs(corners[2].x - corners[3].x)) / 2;
+  return printAreaCorners(imageAspect, areaAspect, centre, width);
+}
+
 /** Centred area covering a plausible chest print, used for a newly added one. */
 export const DEFAULT_CORNERS: NormQuad = [
   { x: 0.36, y: 0.4 },

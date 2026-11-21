@@ -136,7 +136,8 @@ in, and it's where most of the per-design work happens. You get:
 - **The image**, on a checkerboard so you can see the transparency, with **Download PNG**
   underneath.
 - **Variants** — every image from that generation. Hit **Use this one** to make it the
-  keeper, which moves the design to **Approved**. Each tile also has its own small
+  keeper, which moves the design to **Approved** and spends about six seconds sizing it to
+  the print area (see below). Each tile also has its own small
   **download** link, which is how you get an option you *didn't* pick out of the app.
 - **Artwork** panel (right) — what is actually on each placement. This is not where you
   tell the app where the design goes: a variant already carries the placement you chose on
@@ -166,14 +167,36 @@ in, and it's where most of the per-design work happens. You get:
 
 ---
 
+### What "Approved" does to the file
+
+Picking the keeper doesn't just mark a decision — it builds the file everything downstream
+uses. The art is trimmed to its visible pixels, enlarged, and placed on a transparent canvas
+that **is** the print area: 4494×5097, every design, every time.
+
+This is why it matters: before, each design kept whatever size and padding the model gave
+it, so a mockup area filled with the whole file printed the art small and floating. Now the
+canvas fills the area and the art sits in the same place on every design, so an area marked
+once works for all of them — and Printify gets the same canvas, so the mockup and the print
+are the same arithmetic instead of two that happen to agree.
+
+Inside the canvas the art is up to **12in wide and 14in tall**, with its top **3.79in below
+the collar** (as high as this blueprint's print area starts).
+
+---
+
 ## 4. Mockups — your blank garments (one-time setup)
 
 **+ Add mockups** uploads your blank-product photos. Then open one and **mark the print
-area**: drag the corners over where the design should sit, rotate if the shirt is at an
-angle, label it (`front`, `back`). Save.
+area**: drag the corners over the printable panel, rotate if the shirt is at an angle, label
+it (`front`, `back`). Save.
 
-You do this **once per photo**. Every design from then on reuses it. You already have 16
-Comfort Colors 1717 blacks set up.
+**Mark the whole printable panel, not the artwork.** The area represents the full 15×17in
+print area, and every approved design is sized to exactly that, so the art lands where it
+would really print. A new area starts at the right proportions, and **Fit to print area**
+reshapes an existing one to them, keeping its centre and width. Corners stay free after
+that — pushing one into a fold is what makes the print sit in the fabric rather than on it.
+
+You do this **once per photo**. Every design from then on reuses it.
 
 ---
 
@@ -242,10 +265,10 @@ Optionally tick **Use the Atlas upscaler — $0.01 per placement**. It gives cri
 than the free resize; worth it for fine lettering, not much else.
 
 What happens automatically on the way out, so you don't have to think about it:
-- transparent padding is **trimmed** off the artwork,
-- the art is placed so it starts **3 inches below the collar**, measured from the trimmed
-  art and the real print area,
-- it's capped at **12″ wide × 14″ tall**,
+- the canvas built at approval is sent **whole** — dead centre, full width — so Printify
+  prints exactly what the mockup showed,
+- a design approved before canvases existed is still trimmed, placed **3 inches below the
+  collar** and capped at **12″ × 14″** on the way out,
 - placements with no artwork are **not sent at all**.
 
 Designs move to **Pushed**. **Drafts are never published** — that's the whole design of it.

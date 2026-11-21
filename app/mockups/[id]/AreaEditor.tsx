@@ -4,7 +4,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { saveAreas } from '../actions';
 import { DEFAULT_OPTIONS, type RenderOptions } from '@/lib/render/options';
 import { centroidOf, isInsideQuad, moveQuad, rotateQuad, scaleQuad } from '@/lib/render/transform';
-import { defaultCornersFor, type MockupTemplate, type NormQuad, type PrintArea } from '@/lib/mockups';
+import {
+  printAreaCorners,
+  snapToPrintAspect,
+  type MockupTemplate,
+  type NormQuad,
+  type PrintArea,
+} from '@/lib/mockups';
 import type { DesignCard } from '@/lib/types';
 
 const CORNER_LABELS = ['top left', 'top right', 'bottom right', 'bottom left'] as const;
@@ -30,14 +36,20 @@ type Drag =
 export function AreaEditor({
   template,
   designs,
+  printArea,
 }: {
   template: MockupTemplate;
   designs: DesignCard[];
+  /** The print area every approved design is normalised to, in pixels. */
+  printArea: { width: number; height: number };
 }) {
+  const areaAspect = printArea.width / printArea.height;
   const [areas, setAreas] = useState<EditableArea[]>(() =>
     (template.print_areas.length > 0
       ? template.print_areas
-      : [{ id: crypto.randomUUID(), label: 'front', corners: defaultCornersFor(0) }]
+      : // Aspect 1 for now; the image's real aspect arrives when it loads and the first
+        // area is reshaped then, since a newly opened mockup has nothing to lose.
+        [{ id: crypto.randomUUID(), label: 'front', corners: printAreaCorners(1, areaAspect) }]
     ).map((a) => ({ ...a, designId: designs[0]?.id ?? '' })),
   );
   const [activeIndex, setActiveIndex] = useState(0);
@@ -178,7 +190,10 @@ export function AreaEditor({
         {
           id: crypto.randomUUID(),
           label: index === 1 ? 'back' : `area ${index + 1}`,
-          corners: defaultCornersFor(index),
+          corners: printAreaCorners(aspect, areaAspect, {
+            x: index % 2 === 1 ? 0.25 : 0.75,
+            y: 0.47,
+          }),
           designId: designs[0]?.id ?? '',
         },
       ];
@@ -273,7 +288,20 @@ export function AreaEditor({
             draggable={false}
             onLoad={(e) => {
               const img = e.currentTarget;
-              if (img.naturalHeight > 0) setAspect(img.naturalWidth / img.naturalHeight);
+              if (img.naturalHeight > 0) {
+                const real = img.naturalWidth / img.naturalHeight;
+                setAspect(real);
+                // The starting area was built before the photo's shape was known. Snap it,
+                // but only on a mockup that has never been marked — reshaping corners
+                // someone has already placed would undo their work.
+                if (template.print_areas.length === 0) {
+                  setAreas((prev) =>
+                    prev.map((a, i) =>
+                      i === 0 ? { ...a, corners: printAreaCorners(real, areaAspect) } : a,
+                    ),
+                  );
+                }
+              }
             }}
           />
 
@@ -384,6 +412,20 @@ export function AreaEditor({
               ↻
             </button>
           </span>
+
+          {/*
+            A button, not a constraint. Corners have to stay free — pushing one into a fold
+            is what makes a print sit in the fabric rather than on it, and a quad in
+            perspective has no single aspect to hold. So: snap to the right shape, then
+            fine-tune from there.
+          */}
+          <button
+            className="btn ml-auto px-2 py-0.5 text-xs"
+            onClick={() => transformActive((c) => snapToPrintAspect(c, aspect, areaAspect))}
+            title={`Reshape to ${printArea.width}x${printArea.height}, keeping the centre and width`}
+          >
+            Fit to print area
+          </button>
         </div>
 
         {error ? <p className="text-xs text-rose-400">{error}</p> : null}
@@ -393,6 +435,10 @@ export function AreaEditor({
           Drag inside an area to move the whole print, or a corner to reshape it. Arrow keys
           nudge the selected area; hold shift for finer steps. A corner pushed into a fold is
           what makes the result sit in the fabric instead of floating on it.
+          {' '}An area starts at the print area&rsquo;s own shape ({printArea.width}&times;
+          {printArea.height}), and every approved design is sized to exactly that — so mark
+          the area over the whole printable panel, not around the artwork, and each design
+          lands where it would really print.
         </p>
       </div>
 

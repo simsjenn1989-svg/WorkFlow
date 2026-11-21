@@ -62,6 +62,25 @@ export function ArtworkPanel({
   // opens on front rather than on back.
   const free = options.find((l) => !used.has(l));
 
+  /**
+   * Size the design's artwork to the print area.
+   *
+   * Every placement is rebuilt, not just the new one, because the canvas depends on the
+   * preset's print area and a change there should not leave half a design on the old size.
+   * Failure is not fatal: the artwork exists, and the renderer falls back to the raw image.
+   */
+  async function normalise(): Promise<void> {
+    try {
+      await fetch('/api/artworks/normalise', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ designId }),
+      });
+    } catch {
+      // Reported by the next render, where the artwork simply has no canvas yet.
+    }
+  }
+
   async function submit() {
     if (from === 'have') {
       if (!picked) {
@@ -76,6 +95,7 @@ export function ArtworkPanel({
         setError(result.error);
         return;
       }
+      await normalise();
       setOpen(false);
       router.refresh();
       return;
@@ -104,6 +124,7 @@ export function ArtworkPanel({
         const body = (await response.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? 'Saving failed.');
       }
+      await normalise();
       setFile(null);
       setOpen(false);
       router.refresh();

@@ -21,6 +21,7 @@ export function VariantPicker({
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [preparing, setPreparing] = useState(false);
 
   if (variants.length === 0) return null;
 
@@ -33,7 +34,11 @@ export function VariantPicker({
           {variants.length} variant{variants.length === 1 ? '' : 's'}
         </h2>
         <p className="text-[11px] text-zinc-500">
-          {chosen ? 'Pick a different one to swap it.' : 'Pick the keeper.'}
+          {preparing
+            ? 'Sizing it to the print area…'
+            : chosen
+              ? 'Pick a different one to swap it.'
+              : 'Pick the keeper.'}
         </p>
       </div>
 
@@ -89,8 +94,39 @@ export function VariantPicker({
                 setBusyId(variant.id);
                 start(async () => {
                   const result = await chooseVariant(designId, variant.id);
-                  if (!result.ok) setError(result.error);
-                  setBusyId(null);
+                  if (!result.ok) {
+                    setError(result.error);
+                    setBusyId(null);
+                    return;
+                  }
+                  /*
+                    Picking the keeper is the moment a design becomes something you put on
+                    products, so the print canvas is built here rather than at push time.
+                    It is a separate request because it takes about six seconds — too long
+                    to hold the action open with no sign of progress.
+
+                    A failure is reported and nothing else: the artwork exists either way,
+                    and everything downstream falls back to the raw image as it did before
+                    canvases existed.
+                  */
+                  setPreparing(true);
+                  try {
+                    const response = await fetch('/api/artworks/normalise', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ designId }),
+                    });
+                    const body = (await response.json().catch(() => null)) as
+                      | { failed?: string[]; error?: string }
+                      | null;
+                    if (!response.ok) throw new Error(body?.error ?? 'Preparing the print file failed.');
+                    if (body?.failed?.length) setError(`Print file: ${body.failed.join('; ')}`);
+                  } catch (e) {
+                    setError((e as Error).message);
+                  } finally {
+                    setPreparing(false);
+                    setBusyId(null);
+                  }
                 });
               }}
             >

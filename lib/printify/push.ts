@@ -89,17 +89,37 @@ export async function pushDesign(input: PushInput): Promise<PushResult> {
     const image = await ensureUploaded(artwork, preset, input.useAtlas ?? false);
     uploaded.push({ label: area, ...image });
 
-    // Worked out from the uploaded file's real dimensions, which are the trimmed ones — the
-    // print-ready step crops transparent padding before upload, so the width and height
-    // Printify reported back describe the visible art and nothing else. That is what makes
-    // "3 inches below the collar" mean the same thing for every design.
-    const computed = placeArtwork({
-      artWidthPx: image.width,
-      artHeightPx: image.height,
-      areaWidthPx: preset.print_width_px ?? 4494,
-      areaHeightPx: preset.print_height_px ?? 5097,
-      rules: preset.placements[area],
-    });
+    const areaWidthPx = preset.print_width_px ?? 4494;
+    const areaHeightPx = preset.print_height_px ?? 5097;
+
+    // A normalised canvas is already the print area, with the art placed on it and the rest
+    // transparent, so it is sent whole: dead centre, full width, no rotation. Applying the
+    // placement rules a second time would shrink the canvas as though the transparent
+    // margins were art — a 15in-wide canvas read as 15in of artwork, capped to 12in, and
+    // every design would creep inwards and downwards on each push.
+    //
+    // Anything else is a file of the art alone, at its own aspect ratio, so it still needs
+    // placing. Old artwork from before canvases existed takes this path unchanged.
+    const whole = image.width === areaWidthPx && image.height === areaHeightPx;
+    const computed = whole
+      ? {
+          x: 0.5,
+          y: 0.5,
+          scale: 1,
+          angle: 0,
+          widthIn: areaWidthPx / 300,
+          heightIn: areaHeightPx / 300,
+          topIn: 0,
+          cappedBy: null,
+          atTopOfArea: false,
+        }
+      : placeArtwork({
+          artWidthPx: image.width,
+          artHeightPx: image.height,
+          areaWidthPx,
+          areaHeightPx,
+          rules: preset.placements[area],
+        });
 
     // A stored override wins, for the one design that wants moving.
     const override = artwork.placement;
@@ -205,9 +225,24 @@ async function ensureUploaded(
       current &&
       (current.width >= targetWidth * 0.98 || current.height >= targetHeight * 0.98);
     if (!big) path = null;
+
+    // A canvas built for a DIFFERENT print area passes the test above on one axis and is
+    // still the wrong shape, so it is rebuilt rather than stretched.
+    if (path && current && current.width !== targetWidth && current.height !== targetHeight) {
+      path = null;
+    }
   }
   if (!path) {
-    const result = await makePrintReady(artwork, { targetWidth, targetHeight, useAtlas });
+    // Rebuild as a canvas, the same way approving a design does, so a push can never
+    // produce a file shaped differently from the one the mockups were rendered against.
+    // `useAtlas` still buys the crisper enlargement, applied to the art before it is
+    // placed on the canvas.
+    const result = await makePrintReady(artwork, {
+      targetWidth,
+      targetHeight,
+      useAtlas,
+      canvas: true,
+    });
     path = result.path;
   }
 

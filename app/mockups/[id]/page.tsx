@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { isConfigured } from '@/lib/supabase';
 import { getMockup } from '@/lib/mockups';
 import { boardData } from '@/lib/data';
+import { printAreaSize } from '@/lib/printify/canvas';
 import { deleteMockup } from '../actions';
 import { SetupNotice } from '@/app/setup/SetupNotice';
 import { DangerButton } from '@/components/DangerButton';
@@ -19,7 +20,7 @@ export default async function MockupPage({ params }: { params: Promise<{ id: str
   if (!template) notFound();
 
   // Only designs that actually have artwork can be previewed.
-  const board = await boardData();
+  const [board, printArea] = await Promise.all([boardData(), printAreaSize()]);
   const designs: DesignCard[] = Object.values(board)
     .flat()
     .filter((d) => d.image_url)
@@ -43,7 +44,7 @@ export default async function MockupPage({ params }: { params: Promise<{ id: str
         />
       </div>
 
-      <AreaEditor template={template} designs={designs} />
+      <AreaEditor template={template} designs={designs} printArea={printArea} />
     </div>
   );
 }

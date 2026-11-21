@@ -1,5 +1,6 @@
 import sharp from 'sharp';
 import { BUCKET, db, signedUrl } from '@/lib/supabase';
+import { buildPrintCanvas } from './canvas';
 
 /**
  * Turning a generated design into a file worth printing.
@@ -54,6 +55,14 @@ export type PrintReadyOptions = {
    * says it will, and the only way to find out is to look at the Printify preview.
    */
   trim?: boolean;
+  /**
+   * Produce a canvas the exact size of the print area, with the art placed on it, instead of
+   * a file of the art alone.
+   *
+   * This is what an approved design gets, so that a mockup and a Printify draft are the same
+   * arithmetic rather than two that agree by luck. See `canvas.ts`.
+   */
+  canvas?: boolean;
 };
 
 /** Printify's print areas are 300 DPI by design, so pixels map straight to inches. */
@@ -66,13 +75,35 @@ export async function makePrintReady(
   const file = await db().storage.from(BUCKET).download(artwork.image_path);
   if (file.error || !file.data) throw new Error('The design image could not be read.');
   // Typed loosely on purpose: the trim step hands back a buffer sharp allocated itself.
-  let image: Buffer = Buffer.from(await file.data.arrayBuffer());
+  const original: Buffer = Buffer.from(await file.data.arrayBuffer());
+  let image: Buffer = original;
 
   let trimmed = false;
   if (options.trim !== false) {
     const cropped = await trimTransparentBorder(image);
     trimmed = cropped.trimmed;
     image = cropped.buffer;
+  }
+
+  if (options.canvas) {
+    // The canvas builder trims and places on its own, from the untrimmed source, because
+    // the placement rules are expressed against the art's visible pixels.
+    const built = await buildPrintCanvas(
+      original,
+      { width: options.targetWidth, height: options.targetHeight },
+      undefined,
+      options.useAtlas ? upscaleWithAtlas : undefined,
+    );
+    const path = await store(artwork, built.png);
+    return {
+      path,
+      width: built.width,
+      height: built.height,
+      dpi: PRINT_DPI,
+      method: options.useAtlas ? 'atlas' : 'lanczos',
+      trimmed: built.trimmed,
+      alreadyLargeEnough: !built.enlarged,
+    };
   }
 
   const meta = await sharp(image).metadata();

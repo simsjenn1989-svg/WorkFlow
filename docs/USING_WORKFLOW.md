@@ -179,8 +179,13 @@ canvas fills the area and the art sits in the same place on every design, so an 
 once works for all of them — and Printify gets the same canvas, so the mockup and the print
 are the same arithmetic instead of two that happen to agree.
 
-Inside the canvas the art is up to **12in wide and 14in tall**, with its top **3.79in below
-the collar** (as high as this blueprint's print area starts).
+Inside the canvas the art **fills the print area** — the full 14.98in width unless its own
+shape makes height the limit — with its top **3.79in below the collar**, as high as this
+blueprint's area starts. The print area is already the region that prints cleanly, so there
+is no reason to hold art inside it twice.
+
+To make a placement print smaller, set **max width** or **max height** on it in the preset
+editor. Leave them blank to fill.
 
 ---
 
@@ -277,8 +282,8 @@ than the free resize; worth it for fine lettering, not much else.
 What happens automatically on the way out, so you don't have to think about it:
 - the canvas built at approval is sent **whole** — dead centre, full width — so Printify
   prints exactly what the mockup showed,
-- a design approved before canvases existed is still trimmed, placed **3 inches below the
-  collar** and capped at **12″ × 14″** on the way out,
+- a design approved before canvases existed is still trimmed and placed **3 inches below
+  the collar** on the way out,
 - placements with no artwork are **not sent at all**.
 
 Designs move to **Pushed**. **Drafts are never published** — that's the whole design of it.

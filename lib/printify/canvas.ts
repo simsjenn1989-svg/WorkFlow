@@ -44,6 +44,54 @@ export type CanvasResult = {
   enlarged: boolean;
 };
 
+/**
+ * Crop to the pixels you can actually see.
+ *
+ * `sharp.trim()` compares colours and treats any alpha above zero as content, which sounds
+ * right and is not. The background cutout feathers the rim of every shape, and a PNG of a
+ * keyed image carries a halo of alpha 1 to 8 — invisible on any screen and at any print
+ * size, but enough to count.
+ *
+ * Measured on the raccoon: visible art ends 2246px down a 3840px file, and alpha above zero
+ * runs to 3280px. Trimming on "above zero" therefore declared the art 46% taller than it
+ * is, so fitting it to the print area's height made the visible graphic 11.1 x 12.0in
+ * instead of filling the panel — the design looked too small and sat too high, with no
+ * empty space anywhere to explain why.
+ *
+ * 8 of 255 is about 3% opacity. Nothing a person can see survives below it.
+ */
+const INVISIBLE_ALPHA = 8;
+
+export async function trimByAlpha(source: Buffer, cut = INVISIBLE_ALPHA): Promise<Buffer> {
+  const { data, info } = await sharp(source).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width, height, channels } = info;
+
+  let minX = width;
+  let maxX = -1;
+  let minY = height;
+  let maxY = -1;
+
+  for (let y = 0; y < height; y++) {
+    const row = y * width;
+    for (let x = 0; x < width; x++) {
+      if (data[(row + x) * channels + 3]! <= cut) continue;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+
+  // Nothing visible at all: hand back what came in rather than an empty extract, and let
+  // the caller's own "this cut out the design" checks deal with it.
+  if (maxX < minX || maxY < minY) return source;
+
+  return sharp(source)
+    .extract({ left: minX, top: minY, width: maxX - minX + 1, height: maxY - minY + 1 })
+    .png()
+    .toBuffer();
+}
+
 /** The print area every approved design is normalised to: the default preset's, or the tee's. */
 export async function printAreaSize(): Promise<{ width: number; height: number }> {
   const preset = await defaultPreset();
@@ -74,11 +122,7 @@ export async function buildPrintCanvas(
   // Trim first, always. Every number below is about where the ART sits, and without this
   // "the top of the art" means the top of whatever empty space the model generated.
   const before = await sharp(source).metadata();
-  const trimmedBuffer = await sharp(source)
-    .trim({ threshold: 0 })
-    .png()
-    .toBuffer()
-    .catch(() => source);
+  const trimmedBuffer = await trimByAlpha(source);
   const art = await sharp(trimmedBuffer).metadata();
   const artWidth = art.width ?? 0;
   const artHeight = art.height ?? 0;

@@ -40,17 +40,25 @@ export type PlacementRules = {
    * is why it is a rule rather than a constant.
    */
   collarToAreaTopIn: number;
-  /** Nothing wider than this, so art never reaches the sleeves. */
-  maxWidthIn: number;
-  /** Nothing taller than this, so art never runs into the hem. */
-  maxHeightIn: number;
+  /**
+   * Nothing wider than this. Null fills the print area's width, which is the default.
+   *
+   * It was 12in, on the reasoning that art should stay clear of the sleeves. That was
+   * wrong, and comparing a draft against the shop's real listings is what showed it: the
+   * print area IS the safe zone — Printify defines it as the region that prints cleanly —
+   * so holding art 3in inside it only makes every design 80% the size it should be. A
+   * reference listing has the graphic running the full width of the area.
+   */
+  maxWidthIn: number | null;
+  /** Nothing taller than this. Null fills the print area's height. */
+  maxHeightIn: number | null;
 };
 
 export const DEFAULT_RULES: PlacementRules = {
   topDropIn: 3,
   collarToAreaTopIn: 3.79,
-  maxWidthIn: 12,
-  maxHeightIn: 14,
+  maxWidthIn: null,
+  maxHeightIn: null,
 };
 
 export type Placed = {
@@ -89,12 +97,15 @@ export function placeArtwork(input: {
 
   // Start as wide as allowed, then pull back if that makes it too tall. Width is the usual
   // binding constraint for a chest print; height binds on anything portrait.
-  let widthIn = Math.min(rules.maxWidthIn, areaWidthIn);
+  const maxWidthIn = rules.maxWidthIn ?? areaWidthIn;
+  const maxHeightIn = rules.maxHeightIn ?? areaHeightIn;
+
+  let widthIn = Math.min(maxWidthIn, areaWidthIn);
   let heightIn = widthIn / aspect;
   let cappedBy: Placed['cappedBy'] = widthIn < areaWidthIn ? 'width' : null;
 
-  if (heightIn > rules.maxHeightIn) {
-    heightIn = rules.maxHeightIn;
+  if (heightIn > maxHeightIn) {
+    heightIn = maxHeightIn;
     widthIn = heightIn * aspect;
     cappedBy = 'height';
   }

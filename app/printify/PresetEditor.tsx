@@ -359,28 +359,40 @@ export function PresetEditor({ presets }: { presets: Preset[] }) {
                     </label>
 
                     {placement.enabled !== false ? (
-                      <div className="flex flex-wrap gap-3 pl-6 text-[11px] text-zinc-500">
+                      <div className="flex flex-wrap items-center gap-3 pl-6 text-[11px] text-zinc-500">
+                        {/*
+                          The two size fields are empty by default and empty means "fill the
+                          print area". They were 12 and 14, which quietly made every design
+                          80% of the width it should have been — the print area already IS
+                          the area that prints cleanly, so holding art inside it again just
+                          shrinks the graphic.
+                        */}
                         {(
                           [
-                            ['topDropIn', 'top below collar', 3],
-                            ['maxWidthIn', 'max width', 12],
-                            ['maxHeightIn', 'max height', 14],
+                            ['topDropIn', 'top below collar', '3'],
+                            ['maxWidthIn', 'max width', 'fill'],
+                            ['maxHeightIn', 'max height', 'fill'],
                           ] as const
-                        ).map(([field, label, fallback]) => (
+                        ).map(([field, label, placeholder]) => (
                           <label key={field} className="flex items-center gap-1.5">
                             {label}
                             <input
                               aria-label={`${area} ${label}`}
                               className="field w-16 py-0.5"
-                              value={placement[field] ?? fallback}
+                              placeholder={placeholder}
+                              value={placement[field] ?? ''}
                               onChange={(e) => {
-                                const value = Number(e.target.value);
+                                const raw = e.target.value.trim();
+                                const value = Number(raw);
                                 patch({
                                   placements: {
                                     ...draft.preset.placements,
                                     [area]: {
                                       ...placement,
-                                      [field]: Number.isFinite(value) ? value : fallback,
+                                      // Blank clears the cap rather than falling back to a
+                                      // number, so "fill the area" is reachable from the UI.
+                                      [field]:
+                                        raw === '' || !Number.isFinite(value) ? undefined : value,
                                     },
                                   },
                                 });
@@ -389,6 +401,7 @@ export function PresetEditor({ presets }: { presets: Preset[] }) {
                             in
                           </label>
                         ))}
+                        <span className="text-zinc-600">blank fills the print area</span>
                       </div>
                     ) : null}
                   </div>

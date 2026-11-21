@@ -29,7 +29,7 @@ tells you what it's waiting for:
 
 | Column | What it means | What to do |
 |---|---|---|
-| **Idea** | A prompt, not yet generated | Generate it |
+| **Idea** | A design with no art yet | Nothing creates one — see below |
 | **Generated** | Images came back | Pick the keeper |
 | **Approved** | A keeper is chosen | Render mockups, or push a draft |
 | **Print ready** | Sized for the blueprint | (optional — the push does this for you) |
@@ -56,8 +56,18 @@ Most of the pipeline moves cards for you — picking a keeper, finishing a rende
 draft — so these are for corrections and for the last step, which is yours.
 
 At the top: **Search** by title, filter by **Collection** or **Tag**, then **Apply**.
-**+ Add designs** uploads artwork you made elsewhere — it skips generation and lands in the
-pipeline like anything else.
+**+ Add designs** uploads artwork you made elsewhere. It starts at **Approved**, because
+the art already exists — it skips Generated entirely.
+
+### Nothing puts a card in Idea
+
+Worth knowing, because the column sits there looking like an inbox. Generating creates a
+card at **Generated**; uploading creates one at **Approved**. The only things that land in
+**Idea** are a generation that failed or timed out — the empty card it left is sent back
+there rather than stranded in Generated — and a design you move there yourself with **←
+Back** or **Jump to**.
+
+An idea you haven't made yet lives on the **Prompts** screen, as a saved prompt.
 
 Clicking any card opens that design — see step 3.
 

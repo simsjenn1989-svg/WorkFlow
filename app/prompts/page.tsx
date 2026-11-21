@@ -51,7 +51,7 @@ export default async function PromptsPage() {
               rows={4}
               maxLength={32000}
               className="field"
-              placeholder="Light cream retro lettering reading {{phrase}}, {{style}} style, flat vector, transparent background, no mockup"
+              placeholder="Light cream retro lettering reading {{phrase}}, {{style}} style, flat vector, no mockup"
             />
           </label>
           <label className="block space-y-1 text-xs text-zinc-400">

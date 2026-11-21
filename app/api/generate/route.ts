@@ -12,6 +12,7 @@ import {
   startGeneration,
 } from '@/lib/atlas';
 import { normaliseLabel, PRIMARY_LABEL } from '@/lib/artworks';
+import { withPrintBackground } from '@/lib/background';
 
 export const runtime = 'nodejs';
 
@@ -62,6 +63,13 @@ export async function POST(request: Request) {
   }
   const input = parsed.data;
 
+  // What actually goes to Atlas: the typed prompt with any "transparent background" taken
+  // out and the chroma screen put on. Enforced here rather than only in the form because a
+  // saved prompt, a retry of an older generation and a direct call all arrive through this
+  // route, and one of them asking for transparency is how a whole generation comes back with
+  // a painted checkerboard on it. The design's title still comes from what the person wrote.
+  const prompt = withPrintBackground(input.prompt);
+
   const model = await getModel(input.model);
   if (!model) {
     return NextResponse.json({ error: `Unknown model "${input.model}".` }, { status: 400 });
@@ -88,7 +96,7 @@ export async function POST(request: Request) {
       prompt_id: input.promptId,
       tags: input.tags,
       source_model: model.model,
-      source_params: { ...input.params, prompt: input.prompt, n: input.count },
+      source_params: { ...input.params, prompt, n: input.count },
     });
     if (designError) {
       return NextResponse.json(
@@ -129,7 +137,7 @@ export async function POST(request: Request) {
       reference = { [field]: [url] };
     }
 
-    const prediction = await startGeneration(model.model, input.prompt, {
+    const prediction = await startGeneration(model.model, prompt, {
       ...input.params,
       ...reference,
       n: input.count,
@@ -156,7 +164,7 @@ export async function POST(request: Request) {
       count: input.count,
       label,
       createdDesign,
-      prompt: input.prompt,
+      prompt,
       params: input.params,
       referencePath: input.referencePath,
       collectionId: input.collectionId,

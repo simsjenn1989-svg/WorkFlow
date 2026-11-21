@@ -38,15 +38,42 @@ export type CutoutOptions = {
   tolerance?: number;
 };
 
-/** True when the image has no usable transparency, so a cutout is worth attempting. */
+/**
+ * True when the image still has a background to remove.
+ *
+ * Having an alpha channel is not the same as having used it, and neither is having used it
+ * somewhere. A model can return partial transparency inside the artwork — a soft shadow, a
+ * screen-print texture — while the canvas around it stays a solid painted colour. Judging by
+ * the alpha channel's minimum alone, as this did at first, calls that image finished and
+ * stores a design with a background baked into it.
+ *
+ * So the question asked is the one that matters: is the border opaque? If the outside edge
+ * is solid, there is something out there to cut, whatever the middle is doing.
+ */
 export async function needsCutout(image: Buffer): Promise<boolean> {
   const meta = await sharp(image).metadata();
   if (!meta.hasAlpha) return true;
 
-  // An alpha channel that is fully opaque everywhere is the same as not having one.
-  const stats = await sharp(image).stats();
-  const alpha = stats.channels[3];
-  return !alpha || alpha.min >= 250;
+  const { data, info } = await sharp(image).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const { width, height, channels } = info;
+
+  let opaque = 0;
+  let sampled = 0;
+  const step = Math.max(1, Math.floor(width / 128));
+  const look = (x: number, y: number) => {
+    sampled++;
+    if (data[(y * width + x) * channels + 3]! >= 250) opaque++;
+  };
+  for (let x = 0; x < width; x += step) {
+    look(x, 0);
+    look(x, height - 1);
+  }
+  for (let y = 0; y < height; y += step) {
+    look(0, y);
+    look(width - 1, y);
+  }
+
+  return sampled === 0 || opaque / sampled > 0.9;
 }
 
 export async function cutBackground(
@@ -69,7 +96,8 @@ export async function cutBackground(
   for (let y = 0; y < height; y += step) {
     edge.push(pixel(data, channels, 0, y, width), pixel(data, channels, width - 1, y, width));
   }
-  const background = median(edge);
+  const tones = backgroundTones(edge, options.tolerance ?? 60);
+  const background = tones[0]!;
 
   // A saturated background is a chroma screen and can be keyed everywhere at once; a dull
   // one is part of the picture's own palette and may only be removed where it is provably
@@ -81,7 +109,7 @@ export async function cutBackground(
   const chroma = saturation(background) > 120;
   const removed = chroma
     ? keyColour(data, channels, background, options.tolerance ?? 120)
-    : floodFromBorder(data, channels, width, height, background, options.tolerance ?? 60);
+    : floodFromBorder(data, channels, width, height, tones, options.tolerance ?? 60);
 
   const png = await sharp(data, { raw: { width, height, channels } })
     .png({ compressionLevel: 9 })
@@ -160,7 +188,7 @@ function floodFromBorder(
   channels: number,
   width: number,
   height: number,
-  background: [number, number, number],
+  tones: [number, number, number][],
   tolerance: number,
 ): number {
   const seen = new Uint8Array(width * height);
@@ -169,7 +197,8 @@ function floodFromBorder(
   const consider = (x: number, y: number) => {
     const i = y * width + x;
     if (seen[i]) return;
-    if (distance(pixel(data, channels, x, y, width), background) > tolerance) return;
+    const here = pixel(data, channels, x, y, width);
+    if (!tones.some((tone) => distance(here, tone) <= tolerance)) return;
     seen[i] = 1;
     stack.push(i);
   };
@@ -217,6 +246,45 @@ function pixel(
 
 function distance(a: [number, number, number], b: [number, number, number]): number {
   return Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
+}
+
+/**
+ * The colours the border is made of — usually one, sometimes two.
+ *
+ * A background is not always flat. Asked for transparency, a model that cannot produce it
+ * paints the editor's checkerboard instead: two neutral tones, measured at RGB(254,254,254)
+ * and RGB(222,222,224), 96 apart in summed channels. A single median picks one of them, the
+ * flood clears those squares and stops at every square of the other, and the result is the
+ * design wearing a hard speckled halo — which is exactly what happened, and what the 97%
+ * "the cutout ate the design" guard cannot catch, because only 55% was removed.
+ *
+ * Taking the modal colour and then the most common colour that is NOT already covered by it
+ * handles both cases with one rule: a flat background yields one tone, a checkerboard two.
+ * A second tone has to hold at least 15% of the border to count, which is what keeps artwork
+ * running off the edge of the canvas from being read as background and flooded away.
+ */
+function backgroundTones(
+  edge: [number, number, number][],
+  tolerance: number,
+): [number, number, number][] {
+  const first = modal(edge);
+  const rest = edge.filter((c) => distance(c, first) > tolerance);
+  if (rest.length < edge.length * 0.15) return [first];
+  return [first, modal(rest)];
+}
+
+/** The most common colour in a sample, to the nearest 8 per channel. */
+function modal(values: [number, number, number][]): [number, number, number] {
+  const counts = new Map<string, { colour: [number, number, number]; n: number }>();
+  for (const value of values) {
+    const key = value.map((v) => v >> 3).join(',');
+    const seen = counts.get(key);
+    if (seen) seen.n++;
+    else counts.set(key, { colour: value, n: 1 });
+  }
+  let best: { colour: [number, number, number]; n: number } | null = null;
+  for (const entry of counts.values()) if (!best || entry.n > best.n) best = entry;
+  return best?.colour ?? median(values);
 }
 
 function median(values: [number, number, number][]): [number, number, number] {

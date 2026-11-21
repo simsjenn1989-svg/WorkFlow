@@ -8,6 +8,7 @@ import type { Collection, DesignCard } from '@/lib/types';
 import { COMMON_LABELS, PRIMARY_LABEL } from '@/lib/artworks';
 import { ReferencePanel, type Reference } from './ReferencePanel';
 import { fillSlots, slotsIn } from '@/lib/queries';
+import { withPrintBackground } from '@/lib/background';
 
 type Phase = 'idle' | 'starting' | 'generating' | 'done' | 'error';
 
@@ -135,6 +136,13 @@ export function GenerateForm({
 
   const slots = useMemo(() => slotsIn(body), [body]);
   const finalPrompt = useMemo(() => fillSlots(body, slotValues), [body, slotValues]);
+  /*
+    The prompt as Atlas will receive it. The route applies the same function, so this is a
+    preview rather than the source of truth — but it has to be shown, because the rewrite
+    deletes words the person typed ("transparent background") and silently editing someone's
+    prompt is worse than the bug it fixes.
+  */
+  const sentPrompt = useMemo(() => withPrintBackground(finalPrompt), [finalPrompt]);
   const estimateCents = Math.round((model?.basePriceUsd ?? 0) * count * 100);
   const overBudget = estimateCents > remainingCents;
 
@@ -210,7 +218,7 @@ export function GenerateForm({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: finalPrompt,
+          prompt: sentPrompt,
           model: modelId,
           count,
           params: typed,
@@ -301,7 +309,7 @@ export function GenerateForm({
             className="field min-h-28"
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder="Light cream retro lettering reading GHOST MODE, flat vector, transparent background"
+            placeholder="Light cream retro lettering reading GHOST MODE, flat vector, centred, no mockup"
           />
 
           {slots.length > 0 ? (
@@ -319,15 +327,20 @@ export function GenerateForm({
             </div>
           ) : null}
 
-          {slots.length > 0 ? (
-            <p className="rounded border border-zinc-800 bg-zinc-950 p-2 text-[11px] leading-relaxed text-zinc-400">
-              {finalPrompt}
-            </p>
+          {body.trim() ? (
+            <div className="space-y-1">
+              <p className="text-[11px] text-zinc-500">Sent to the model</p>
+              <p className="rounded border border-zinc-800 bg-zinc-950 p-2 text-[11px] leading-relaxed text-zinc-400">
+                {sentPrompt}
+              </p>
+            </div>
           ) : null}
 
           <p className="text-[11px] leading-relaxed text-zinc-600">
-            You print on black, so ask for light colours and a transparent background. Dark art
-            disappears on a dark tee.
+            You print on black, so ask for light colours. Dark art disappears on a dark tee.
+            Don&rsquo;t ask for a transparent background — no model here can make one, and asking
+            makes them paint the grey checkerboard instead. Every prompt gets a magenta screen
+            added, which is cut out after the image lands.
           </p>
         </section>
 

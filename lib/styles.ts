@@ -1,3 +1,4 @@
+import { CHROMA_SCREEN } from './background';
 /**
  * Named styles for redrawing a reference image.
  *
@@ -201,8 +202,7 @@ export function buildReferencePrompt(brief: ReferenceBrief): string {
     // remove the pockets of it enclosed by the subject, so one survived between Santa's arm
     // and a reindeer. Pure magenta is removable everywhere at once because nothing in the
     // artwork is that colour, enclosed or not.
-    'Place the artwork on a completely solid flat background of pure magenta RGB(255, 0, 255).',
-    'The magenta must be one uniform colour with no gradient, texture or shading, and must not appear anywhere in the artwork itself.',
+    CHROMA_SCREEN,
   ]
     .filter(Boolean)
     .join(' ');

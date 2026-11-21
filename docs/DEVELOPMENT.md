@@ -969,3 +969,18 @@ The cutout runs at collection time, not print time, so the stored variant has th
 whichever model made it and everything downstream behaves identically. It is skipped when the
 image already has real transparency, and abandoned if it would remove more than 97% — a
 cutout that eats the subject should leave the original rather than a blank.
+
+### Every Nano Banana defaults to 1k
+
+The redraws were coming out 1024x1024, which the print-ready step then upscaled to 4494 for
+a Comfort Colors front. The cause was not the model: `resolution` is an enum of `1k/2k/4k` on
+every Nano Banana variant and its published default is `"1k"`. The form was faithfully
+applying the schema default.
+
+The form now takes the largest resolution a model offers. Same listed price, so it is free
+resolution, and it removes an upscale from the path.
+
+Only `resolution` is overridden. `size` and `quality` on the gpt-image models multiply the
+real charge — two 2160x3840 images at quality `high` were quoted at $0.014 and billed
+$0.16168 — and maxing those automatically would spend money nobody asked to spend. Resolution
+on these models is per-call priced, which is what makes it safe to max.

@@ -14,6 +14,27 @@ type Phase = 'idle' | 'starting' | 'generating' | 'done' | 'error';
 /** Fields worth showing by default; the rest sit behind "More settings". */
 const PROMINENT = new Set(['size', 'quality', 'background', 'output_format', 'aspect_ratio']);
 
+/**
+ * Override a model default that is wrong for printing.
+ *
+ * Every Nano Banana model ships `resolution: "1k"`, which is where the 1024px designs came
+ * from — fine for a screen, well short of the 4494px a Comfort Colors front needs, so the
+ * print-ready step was upscaling every one of them. The models offer 4k for the same listed
+ * price, so taking the largest is free resolution.
+ *
+ * Only `resolution` is touched. `size` and `quality` on the gpt-image models multiply the
+ * real charge — two 2160x3840 images at quality `high` were quoted at $0.014 and billed
+ * $0.16168 — and silently maxing those would spend money nobody asked to spend.
+ */
+function printDefault(field: AtlasField): string | null {
+  if (field.name !== 'resolution' || !field.enum) return null;
+  const ranked = field.enum
+    .map((v) => ({ value: v, px: Number(String(v).replace(/[^0-9.]/g, '')) }))
+    .filter((v) => Number.isFinite(v.px) && v.px > 0)
+    .sort((a, b) => b.px - a.px);
+  return ranked[0]?.value ?? null;
+}
+
 export function GenerateForm({
   models,
   editModels,
@@ -144,8 +165,9 @@ export function GenerateForm({
         setParams(
           Object.fromEntries(
             next
-              .filter((f) => f.default !== undefined && f.name !== 'n')
-              .map((f) => [f.name, String(f.default)]),
+              .filter((f) => f.default !== undefined || printDefault(f) !== null)
+              .filter((f) => f.name !== 'n')
+              .map((f) => [f.name, printDefault(f) ?? String(f.default)]),
           ),
         );
       })

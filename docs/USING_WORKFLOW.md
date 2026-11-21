@@ -138,8 +138,15 @@ in, and it's where most of the per-design work happens. You get:
 - **Variants** — every image from that generation. Hit **Use this one** to make it the
   keeper, which moves the design to **Approved**. Each tile also has its own small
   **download** link, which is how you get an option you *didn't* pick out of the app.
-- **Artwork** panel (right) — the placements. **+ Add placement** adds a back print;
-  **nudge position** moves the art on the garment if the automatic placement isn't right.
+- **Artwork** panel (right) — the placements. **+ Add placement** uploads art for another
+  spot, picked from a dropdown: **front, back, pocket, left sleeve, right sleeve**. It opens
+  on the first one this design doesn't have yet, and an option already in use says so rather
+  than replacing it silently. **nudge position** moves the art on the garment if the
+  automatic placement isn't right.
+
+  A placement only reaches Printify if the product has a print area of the same name. Your
+  Comfort Colors 1717 has **front** and **back** only — pocket and sleeve art will render on
+  mockups and pins, but the push skips it.
 - **Stage buttons** — ← Back, Move to [next], and Jump to.
 - **Details** — title, collection, tags, notes.
 - **Provenance** — the model, seed and exact prompt that made it.

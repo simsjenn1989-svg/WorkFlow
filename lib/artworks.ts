@@ -25,8 +25,29 @@ export type Artwork = {
 /** The placement a design gets when nothing says otherwise. */
 export const PRIMARY_LABEL = 'front';
 
-/** Labels offered in the UI. Anything else can still be typed. */
-export const COMMON_LABELS = ['front', 'back', 'sleeve', 'pocket'] as const;
+/**
+ * The placements a design can hold.
+ *
+ * A fixed list, offered as a dropdown rather than a free-text box with suggestions. The box
+ * showed a dropdown arrow on hover and then opened empty, which reads as a broken control —
+ * and a typed placement only ever matches a mockup area or a Printify placeholder by exact
+ * string, so free text bought nothing and cost silent mismatches.
+ *
+ * `sleeve` was one option before this; it is split in two because a design is printed on one
+ * sleeve or the other, never both at once. Artwork already stored under an old label keeps
+ * it — nothing is rewritten — and `labelOptions` below makes sure such a label still appears
+ * in the dropdown that edits it.
+ */
+export const COMMON_LABELS = ['front', 'back', 'pocket', 'left sleeve', 'right sleeve'] as const;
+
+/** The dropdown's options: the standard set, plus whatever this design already uses. */
+export function labelOptions(...current: (string | null | undefined)[]): string[] {
+  const extra = current
+    .filter((l): l is string => Boolean(l?.trim()))
+    .map((l) => normaliseLabel(l))
+    .filter((l) => !(COMMON_LABELS as readonly string[]).includes(l));
+  return [...COMMON_LABELS, ...new Set(extra)];
+}
 
 export function normaliseLabel(label: string): string {
   return label.trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 40) || PRIMARY_LABEL;

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { AtlasField, AtlasModel } from '@/lib/atlas';
 import type { Prompt } from '@/lib/queries';
 import type { Collection, DesignCard } from '@/lib/types';
-import { COMMON_LABELS, PRIMARY_LABEL } from '@/lib/artworks';
+import { labelOptions, PRIMARY_LABEL } from '@/lib/artworks';
 import { ReferencePanel, type Reference } from './ReferencePanel';
 import { fillSlots, slotsIn } from '@/lib/queries';
 import { withPrintBackground } from '@/lib/background';
@@ -413,19 +413,24 @@ export function GenerateForm({
           </label>
           <label className="block space-y-1 text-xs text-zinc-400">
             Placement
-            <input
+            {/*
+              `labelOptions(label)` rather than the bare list: a retry restores whatever
+              placement that generation used, which may be a label from before this list
+              was fixed. Without it the select would silently show blank and the retry
+              would land on the wrong placement.
+            */}
+            <select
               name="placement"
               className="field"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              list="generate-placements"
-              maxLength={40}
-            />
-            <datalist id="generate-placements">
-              {COMMON_LABELS.map((l) => (
-                <option key={l} value={l} />
+            >
+              {labelOptions(label).map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
               ))}
-            </datalist>
+            </select>
           </label>
 
           <label className="block space-y-1 text-xs text-zinc-400">

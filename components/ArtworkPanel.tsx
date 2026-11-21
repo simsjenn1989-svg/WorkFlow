@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PlacementNudge } from './PlacementNudge';
-import { COMMON_LABELS, type Artwork } from '@/lib/artworks';
+import { COMMON_LABELS, labelOptions, type Artwork } from '@/lib/artworks';
 import { checkFiles, uploadFiles } from '@/lib/upload-client';
 
 /**
@@ -16,13 +16,19 @@ import { checkFiles, uploadFiles } from '@/lib/upload-client';
 export function ArtworkPanel({ designId, artworks }: { designId: string; artworks: Artwork[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [label, setLabel] = useState('back');
+  const [label, setLabel] = useState(COMMON_LABELS[0] as string);
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const used = new Set(artworks.map((a) => a.label));
+  // Every standard placement, plus any this design already uses under an older name, so
+  // replacing that artwork is still possible from here.
+  const options = labelOptions(...artworks.map((a) => a.label));
+  // Default to the first placement not already taken; front first, so an empty design
+  // opens on front rather than on back.
+  const free = options.find((l) => !used.has(l));
 
   async function submit() {
     if (!file) {
@@ -65,7 +71,15 @@ export function ArtworkPanel({ designId, artworks }: { designId: string; artwork
           Artwork <span className="font-normal text-zinc-500">{artworks.length}</span>
         </h2>
         {!open ? (
-          <button className="text-xs text-zinc-400 hover:text-zinc-200" onClick={() => setOpen(true)}>
+          <button
+            className="text-xs text-zinc-400 hover:text-zinc-200"
+            onClick={() => {
+              // Open on a placement this design does not have yet, so the common case —
+              // adding a second print — needs no choice at all.
+              if (free) setLabel(free);
+              setOpen(true);
+            }}
+          >
             + Add placement
           </button>
         ) : null}
@@ -101,19 +115,19 @@ export function ArtworkPanel({ designId, artworks }: { designId: string; artwork
         <div className="space-y-2 border-t border-zinc-800 pt-3">
           <label className="block space-y-1 text-xs text-zinc-400">
             Placement
-            <input
+            <select
               name="label"
               className="field"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              list="placement-labels"
-              maxLength={40}
-            />
-            <datalist id="placement-labels">
-              {COMMON_LABELS.filter((l) => !used.has(l)).map((l) => (
-                <option key={l} value={l} />
+            >
+              {options.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                  {used.has(l) ? ' — replaces the current one' : ''}
+                </option>
               ))}
-            </datalist>
+            </select>
           </label>
 
           <button className="btn w-full" onClick={() => inputRef.current?.click()}>

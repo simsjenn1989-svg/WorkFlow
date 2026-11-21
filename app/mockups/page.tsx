@@ -3,6 +3,7 @@ import { isConfigured } from '@/lib/supabase';
 import { isMarked, listMockups } from '@/lib/mockups';
 import { SetupNotice } from '@/app/setup/SetupNotice';
 import { MockupUpload } from './MockupUpload';
+import { FitAllAreas } from '@/components/FitAllAreas';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,10 @@ export default async function MockupsPage() {
             that reuses it.
           </p>
         </div>
-        <MockupUpload />
+        <div className="flex flex-wrap items-center gap-2">
+          <FitAllAreas ids={templates.filter(isMarked).map((t) => t.id)} />
+          <MockupUpload />
+        </div>
       </div>
 
       {unmarked > 0 ? (

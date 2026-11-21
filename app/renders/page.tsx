@@ -5,6 +5,7 @@ import { listMockups } from '@/lib/mockups';
 import { listRenders } from '@/lib/renders';
 import { SetupNotice } from '@/app/setup/SetupNotice';
 import { BatchRunner } from './BatchRunner';
+import { FinishedRenders } from '@/components/FinishedRenders';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,47 +56,7 @@ export default async function RendersPage() {
         </section>
       ) : null}
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold">
-          Finished <span className="font-normal text-zinc-500">{done.length}</span>
-        </h2>
-
-        {done.length === 0 ? (
-          <p className="py-10 text-center text-sm text-zinc-500">
-            Nothing rendered yet. Pick designs and mockups above.
-          </p>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {done.map((render) => (
-              <a
-                key={render.id}
-                href={render.url ?? '#'}
-                download={`${render.design_title}-${render.mockup_name}.jpg`}
-                className="group overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 transition hover:border-zinc-600"
-              >
-                <div className="relative aspect-[4/3] bg-zinc-950">
-                  {render.url ? (
-                    /* Signed, expiring URLs — next/image would cache them past their lifetime. */
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={render.url}
-                      alt={`${render.design_title} on ${render.mockup_name}`}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : null}
-                </div>
-                <div className="space-y-0.5 p-2.5">
-                  <p className="truncate text-sm font-medium text-zinc-100">{render.design_title}</p>
-                  <p className="truncate text-[11px] text-zinc-500">
-                    {render.mockup_name} · click to download
-                  </p>
-                </div>
-              </a>
-            ))}
-          </div>
-        )}
-      </section>
+      <FinishedRenders renders={done} />
 
       <p className="text-[11px] text-zinc-600">
         Designs with a finished render move to{' '}

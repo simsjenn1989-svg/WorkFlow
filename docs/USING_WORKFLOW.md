@@ -198,6 +198,11 @@ that — pushing one into a fold is what makes the print sit in the fabric rathe
 
 You do this **once per photo**. Every design from then on reuses it.
 
+**Fit all to print area** on the Mockups list does it for every marked mockup at once —
+useful after a preset change, when every area marked under the old rules is the wrong
+shape. It reshapes each one keeping its centre and width, re-measures the garment under it,
+and tells you which it's on as it goes. Ask twice before it runs; there's no undo.
+
 ---
 
 ## 5. Renders — design × mockup
@@ -211,6 +216,11 @@ produce a broken back mockup.
 
 Rendering is local compositing. **It costs nothing.** Designs with a finished render move to
 **Mockups done**.
+
+**Deleting renders:** click a tile's checkbox (top-left on hover) or **Select all**, then
+**Delete**, which asks a second time. The image files go with the rows. Stages are left
+alone — a design in Mockups done with no renders is one you're about to re-render, not one
+that has moved backwards.
 
 ---
 

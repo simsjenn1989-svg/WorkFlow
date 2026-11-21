@@ -55,12 +55,24 @@ export function ArtworkPanel({
     })),
   ];
   const picked = mine.find((m) => m.value === source) ?? mine[0];
-  // Every standard placement, plus any this design already uses under an older name, so
-  // replacing that artwork is still possible from here.
-  const options = labelOptions(...artworks.map((a) => a.label));
-  // Default to the first placement not already taken; front first, so an empty design
-  // opens on front rather than on back.
-  const free = options.find((l) => !used.has(l));
+  // Every standard placement, plus any this design already uses under an older name — from
+  // its artwork or from a variant waiting to be picked — so replacing either is possible.
+  const options = labelOptions(
+    ...artworks.map((a) => a.label),
+    ...variants.map((v) => v.label),
+  );
+
+  /*
+    What the form should open on.
+
+    A variant waiting to be picked already carries the placement chosen when it was
+    generated. Opening on "the first placement this design doesn't have" ignored that: ask
+    for a back print, come here, and the form suggests front. The pending variant's own
+    placement is the better guess, and the first free placement is the fallback for a
+    design with nothing pending.
+  */
+  const pending = variants.find((v) => !v.chosen && !used.has(v.label))?.label;
+  const free = pending ?? options.find((l) => !used.has(l));
 
   /**
    * Size the design's artwork to the print area.

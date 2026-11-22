@@ -131,12 +131,20 @@ export function FinishedRenders({ renders }: { renders: FinishedRender[] }) {
                 >
                   <div className="relative aspect-[4/3] bg-zinc-950">
                     {render.url ? (
-                      /* Signed, expiring URLs — next/image would cache them past their lifetime. */
+                      /*
+                        Contained, not cropped. `object-cover` filled the tile by cutting the
+                        sides off a 4:3 photo, which on this screen meant judging a print's
+                        placement from a thumbnail that had thrown away the shoulders — a
+                        design that sat fine looked clipped and off-centre. The whole frame
+                        is the point here.
+
+                        Signed, expiring URLs — next/image would cache them past their lifetime.
+                      */
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={render.url}
                         alt={`${render.design_title} on ${render.mockup_name}`}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-contain"
                         loading="lazy"
                       />
                     ) : null}

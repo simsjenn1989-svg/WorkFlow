@@ -197,11 +197,23 @@ editor. Leave them blank to fill.
 area**: drag the corners over the printable panel, rotate if the shirt is at an angle, label
 it (`front`, `back`). Save.
 
-**Mark the whole printable panel, not the artwork.** The area represents the full 15×17in
-print area, and every approved design is sized to exactly that, so the art lands where it
-would really print. A new area starts at the right proportions, and **Fit to print area**
-reshapes an existing one to them, keeping its centre and width. Corners stay free after
-that — pushing one into a fold is what makes the print sit in the fabric rather than on it.
+**A mockup's area and Printify's are not the same thing**, and you choose which one you're
+marking:
+
+- **Mark the real print panel** — roughly shoulder to shoulder, starting about 3.8in below
+  the collar — and the render is *true to print*: what the customer gets. **Fit to print
+  area** reshapes an area to the panel's exact proportions.
+- **Mark where you want the graphic to appear in that photo** and the render is a better
+  photo. On a model cropped at the waist, the real panel runs off the bottom of the frame,
+  so a tighter area reads better.
+
+Either way the graphic is scaled to fill the area it's given, keeping its own proportions —
+so to make a design bigger in a particular shot, make that mockup's area bigger. Corners
+stay free: pushing one into a fold is what makes the print sit in the fabric rather than on
+it.
+
+One caution on the second option: a graphic drawn much bigger than it will really print
+oversells the product. Keep it close.
 
 You do this **once per photo**. Every design from then on reuses it.
 

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { BUCKET, db } from '@/lib/supabase';
 import { renderMockup, type Placement } from '@/lib/render/compose';
 import { describeAreaProblem } from '@/lib/render/homography';
+import { fitToArea } from '@/lib/render/fit';
 import { toPixelQuad, type NormQuad } from '@/lib/mockups';
 import { artworkForArea, artworkMap } from '@/lib/artworks';
 
@@ -97,7 +98,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const quad = toPixelQuad(p.corners as NormQuad, width, height);
     const problem = describeAreaProblem(quad, width, height);
     if (problem) return NextResponse.json({ error: `${p.label}: ${problem}` }, { status: 400 });
-    placements.push({ quad, design: art.get(p.path!)! });
+    // Same shaping as a real render, or the preview would be a different picture from the
+    // one the batch produces — which is the one thing a preview must not be.
+    placements.push({ quad, design: await fitToArea(art.get(p.path!)!, quad) });
   }
 
   try {

@@ -5,6 +5,7 @@ import { BUCKET, db } from '@/lib/supabase';
 import { renderMockup, type Placement } from '@/lib/render/compose';
 import { describeAreaProblem } from '@/lib/render/homography';
 import { artworkForArea, artworkMap } from '@/lib/artworks';
+import { fitToArea } from '@/lib/render/fit';
 import { toPixelQuad, type MockupTemplate, type NormQuad } from '@/lib/mockups';
 
 export const runtime = 'nodejs';
@@ -79,7 +80,9 @@ export async function POST(request: Request) {
       const problem = describeAreaProblem(quad, width, height);
       if (problem) throw new Error(`${area.label}: ${problem}`);
 
-      placements.push({ quad, design: files.get(path)! });
+      // The art, shaped to the marked area — not the Printify canvas, which carries empty
+      // panel below the graphic that would otherwise eat a quarter of the area.
+      placements.push({ quad, design: await fitToArea(files.get(path)!, quad) });
     }
 
     // Full resolution: this is the file that becomes a listing image.

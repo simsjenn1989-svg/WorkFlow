@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { saveAreas } from '../actions';
 import { DEFAULT_OPTIONS, type RenderOptions } from '@/lib/render/options';
-import { centroidOf, isInsideQuad, moveQuad, rotateQuad, scaleQuad } from '@/lib/render/transform';
+import {
+  centroidOf,
+  isInsideQuad,
+  moveQuad,
+  rotateQuad,
+  scaleQuad,
+  tiltOf,
+} from '@/lib/render/transform';
 import {
   printAreaCorners,
   snapToPrintAspect,
@@ -142,7 +149,7 @@ export function AreaEditor({
     };
   }, [drag, pointFromEvent, scheduleRender]);
 
-  /** Arrow keys nudge the active area; shift makes the step finer. */
+  /** Arrow keys nudge the active area, [ and ] tilt it; shift makes either step finer. */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -159,6 +166,21 @@ export function AreaEditor({
               : e.key === 'ArrowRight'
                 ? { x: step, y: 0 }
                 : null;
+      // Tilt from the keyboard too: dragging a corner to turn an area means moving it and
+      // its opposite by hand and hoping the middle stayed put.
+      const turn = e.key === '[' ? -1 : e.key === ']' ? 1 : 0;
+      if (turn !== 0) {
+        e.preventDefault();
+        const degrees = turn * (e.shiftKey ? 0.25 : 1);
+        setAreas((prev) =>
+          prev.map((area, ai) =>
+            ai !== activeIndex ? area : { ...area, corners: rotateQuad(area.corners, degrees, aspect) },
+          ),
+        );
+        scheduleRender();
+        return;
+      }
+
       if (!delta) return;
 
       e.preventDefault();
@@ -172,7 +194,7 @@ export function AreaEditor({
 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [activeIndex, scheduleRender]);
+  }, [activeIndex, aspect, scheduleRender]);
 
   function transformActive(fn: (corners: NormQuad) => NormQuad) {
     setAreas((prev) =>
@@ -182,6 +204,10 @@ export function AreaEditor({
   }
 
   const [placing, setPlacing] = useState(false);
+
+  /** The selected area's current tilt, measured from its corners rather than remembered. */
+  const active = areas[activeIndex];
+  const tilt = active ? tiltOf(active.corners, aspect) : 0;
 
   async function autoPlace() {
     setPlacing(true);
@@ -437,13 +463,53 @@ export function AreaEditor({
             </button>
           </span>
 
-          <span className="flex items-center gap-1 text-xs text-zinc-400">
-            Rotate
-            <button className="btn px-2 py-0.5" onClick={() => transformActive((c) => rotateQuad(c, -1.5, aspect))} aria-label="Rotate left">
+          {/*
+            Tilt, as a slider rather than only a pair of arrows.
+
+            It was two unlabelled icons turning 1.5 degrees a click, which is a long way
+            from "tilt this to sit with the shoulder" and easy to miss entirely. The angle
+            is read back off the corners by `tiltOf`, so the handle shows where the area
+            really is — including after a corner has been dragged by hand — and moving it
+            turns by the difference rather than from some remembered zero.
+          */}
+          <span className="flex items-center gap-1.5 text-xs text-zinc-400">
+            Tilt
+            <button
+              className="btn px-2 py-0.5"
+              onClick={() => transformActive((c) => rotateQuad(c, -1, aspect))}
+              aria-label="Tilt left one degree"
+            >
               ↺
             </button>
-            <button className="btn px-2 py-0.5" onClick={() => transformActive((c) => rotateQuad(c, 1.5, aspect))} aria-label="Rotate right">
+            <input
+              type="range"
+              min={-20}
+              max={20}
+              step={0.5}
+              value={tilt}
+              aria-label="Tilt the print area"
+              className="w-28 accent-zinc-300"
+              onChange={(e) =>
+                transformActive((c) => rotateQuad(c, Number(e.target.value) - tiltOf(c, aspect), aspect))
+              }
+            />
+            <button
+              className="btn px-2 py-0.5"
+              onClick={() => transformActive((c) => rotateQuad(c, 1, aspect))}
+              aria-label="Tilt right one degree"
+            >
               ↻
+            </button>
+            {/* A hair below zero reads as "-0.0", which looks like a bug. */}
+            <span className="w-12 tabular-nums text-zinc-500">
+              {`${(Math.abs(tilt) < 0.05 ? 0 : tilt).toFixed(1)}°`}
+            </span>
+            <button
+              className="text-zinc-500 underline-offset-2 hover:text-zinc-300 hover:underline"
+              onClick={() => transformActive((c) => rotateQuad(c, -tiltOf(c, aspect), aspect))}
+              disabled={Math.abs(tilt) < 0.05}
+            >
+              level
             </button>
           </span>
 
@@ -483,8 +549,10 @@ export function AreaEditor({
 
         <p className="text-[11px] leading-relaxed text-zinc-600">
           Drag inside an area to move the whole print, or a corner to reshape it. Arrow keys
-          nudge the selected area; hold shift for finer steps. A corner pushed into a fold is
-          what makes the result sit in the fabric instead of floating on it.
+          nudge the selected area and <kbd className="rounded bg-zinc-800 px-1">[</kbd>{' '}
+          <kbd className="rounded bg-zinc-800 px-1">]</kbd> tilt it; hold shift for finer
+          steps. A corner pushed into a fold is what makes the result sit in the fabric
+          instead of floating on it.
           {' '}An area starts at the print area&rsquo;s own shape ({printArea.width}&times;
           {printArea.height}), and every approved design is sized to exactly that — so mark
           the area over the whole printable panel, not around the artwork, and each design

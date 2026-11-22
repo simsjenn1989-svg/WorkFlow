@@ -57,6 +57,24 @@ export function rotateQuad(corners: NormQuad, degrees: number, aspect: number): 
   }) as NormQuad;
 }
 
+/**
+ * How far an area is already tilted, in degrees.
+ *
+ * Read back off the corners rather than stored: a quad has no angle field, and the corners
+ * are the truth — they can also be dragged one at a time, which no stored angle would know
+ * about. Measured on the top edge, in the same square space `rotateQuad` turns in, so the
+ * two agree.
+ *
+ * This is what lets a tilt control be a slider rather than only a nudge button: the handle
+ * can sit where the area actually is, and setting it means turning by the difference.
+ */
+export function tiltOf(corners: NormQuad, aspect: number): number {
+  const dx = (corners[1].x - corners[0].x) * aspect;
+  const dy = corners[1].y - corners[0].y;
+  if (dx === 0 && dy === 0) return 0;
+  return (Math.atan2(dy, dx) * 180) / Math.PI;
+}
+
 /** Even-odd ray cast. Used to tell which area a press inside the picture belongs to. */
 export function isInsideQuad(corners: NormQuad, point: NormPoint): boolean {
   let inside = false;

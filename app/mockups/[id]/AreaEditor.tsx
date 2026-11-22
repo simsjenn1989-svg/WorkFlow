@@ -15,6 +15,7 @@ import {
   printAreaCorners,
   snapToPrintAspect,
   type MockupTemplate,
+  type NormPoint,
   type NormQuad,
   type PrintArea,
 } from '@/lib/mockups';
@@ -32,13 +33,40 @@ const SLIDERS: { key: keyof RenderOptions; label: string; min: number; max: numb
 
 const AREA_COLOURS = ['96,165,250', '244,114,182', '52,211,153', '251,191,36', '167,139,250', '248,113,113'];
 
+/**
+ * Where the turn handle sits: out from the top edge, along the box's own up direction.
+ *
+ * A fraction of the box's height rather than a fixed distance, so it stays clear of a big
+ * area and does not fly off a small one. Measured in the square space the quad is rotated
+ * in, or the handle would drift sideways as the area turns on a non-square photo.
+ */
+function turnHandle(corners: NormQuad, aspect: number): NormPoint {
+  const topMid = { x: (corners[0].x + corners[1].x) / 2, y: (corners[0].y + corners[1].y) / 2 };
+  const bottomMid = { x: (corners[2].x + corners[3].x) / 2, y: (corners[2].y + corners[3].y) / 2 };
+  const up = { x: (topMid.x - bottomMid.x) * aspect, y: topMid.y - bottomMid.y };
+  const length = Math.hypot(up.x, up.y) || 1;
+  const out = 0.22;
+  return {
+    x: topMid.x + ((up.x / length) * length * out) / aspect,
+    y: topMid.y + (up.y / length) * length * out,
+  };
+}
+
+/** The pointer's bearing from an area's centre, in the same square space. */
+function bearing(corners: NormQuad, point: NormPoint, aspect: number): number {
+  const c = centroidOf(corners);
+  return Math.atan2(point.y - c.y, (point.x - c.x) * aspect) * (180 / Math.PI);
+}
+
 const NUDGE = 0.004;
 const NUDGE_FINE = 0.001;
 
 type EditableArea = PrintArea & { designId: string };
 type Drag =
   | { kind: 'corner'; area: number; corner: number }
-  | { kind: 'move'; area: number; last: { x: number; y: number } };
+  | { kind: 'move'; area: number; last: { x: number; y: number } }
+  /** Turning by the handle: the pointer's angle last frame, so each move turns by the delta. */
+  | { kind: 'turn'; area: number; last: number };
 
 export function AreaEditor({
   template,
@@ -126,6 +154,23 @@ export function AreaEditor({
         return;
       }
 
+      if (drag.kind === 'turn') {
+        setAreas((prev) =>
+          prev.map((area, ai) => {
+            if (ai !== drag.area) return area;
+            // Turn by how far the pointer swept, not to where it points: the handle is
+            // then wherever you grabbed it rather than snapping under the cursor.
+            const now = bearing(area.corners, p, aspect);
+            let delta = now - drag.last;
+            if (delta > 180) delta -= 360;
+            if (delta < -180) delta += 360;
+            return { ...area, corners: rotateQuad(area.corners, delta, aspect) };
+          }),
+        );
+        setDrag({ ...drag, last: bearing(areas[drag.area]?.corners ?? [p, p, p, p] as NormQuad, p, aspect) });
+        return;
+      }
+
       const dx = p.x - drag.last.x;
       const dy = p.y - drag.last.y;
       setAreas((prev) =>
@@ -147,7 +192,7 @@ export function AreaEditor({
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
     };
-  }, [drag, pointFromEvent, scheduleRender]);
+  }, [areas, aspect, drag, pointFromEvent, scheduleRender]);
 
   /** Arrow keys nudge the active area, [ and ] tilt it; shift makes either step finer. */
   useEffect(() => {
@@ -327,7 +372,7 @@ export function AreaEditor({
         <div
           ref={frameRef}
           className="relative select-none overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900"
-          style={{ touchAction: 'none', cursor: drag?.kind === 'move' ? 'grabbing' : 'default' }}
+          style={{ touchAction: 'none', cursor: drag?.kind === 'move' || drag?.kind === 'turn' ? 'grabbing' : 'default' }}
           onPointerDown={(e) => {
             // A press inside an area grabs the whole thing; corners handle themselves.
             const p = pointFromEvent(e);
@@ -383,6 +428,29 @@ export function AreaEditor({
                     vectorEffect="non-scaling-stroke"
                   />
                 ))}
+
+                {/* The stem, so the handle reads as attached to the box rather than loose. */}
+                {areas[activeIndex]
+                  ? (() => {
+                      const corners = areas[activeIndex]!.corners;
+                      const mid = {
+                        x: (corners[0].x + corners[1].x) / 2,
+                        y: (corners[0].y + corners[1].y) / 2,
+                      };
+                      const h = turnHandle(corners, aspect);
+                      return (
+                        <line
+                          x1={mid.x * 100}
+                          y1={mid.y * 100}
+                          x2={h.x * 100}
+                          y2={h.y * 100}
+                          stroke={`rgb(${AREA_COLOURS[activeIndex % AREA_COLOURS.length]})`}
+                          strokeWidth={0.3}
+                          vectorEffect="non-scaling-stroke"
+                        />
+                      );
+                    })()
+                  : null}
               </svg>
 
               {areas.flatMap((area, ai) =>
@@ -407,6 +475,44 @@ export function AreaEditor({
                   />
                 )),
               )}
+
+              {/*
+                Grab and turn, the way any graphics program does it. The slider and the
+                arrows stay for a precise angle, but reaching for a handle above the box
+                and swinging it is how someone actually squares a print to a shoulder.
+
+                Only the active area gets one: four handles and a stem on every area at
+                once is a thicket, and you can only turn the one you have selected anyway.
+              */}
+              {areas[activeIndex]
+                ? (() => {
+                    const h = turnHandle(areas[activeIndex]!.corners, aspect);
+                    return (
+                      <button
+                        aria-label={`Turn the ${areas[activeIndex]!.label} area`}
+                        title="Drag to turn"
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const p = pointFromEvent(e.nativeEvent);
+                          if (!p) return;
+                          setDrag({
+                            kind: 'turn',
+                            area: activeIndex,
+                            last: bearing(areas[activeIndex]!.corners, p, aspect),
+                          });
+                        }}
+                        className={`absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center
+                                    justify-center rounded-full border-2 border-white bg-zinc-900 text-[11px]
+                                    text-white shadow transition-transform hover:scale-110
+                                    ${drag?.kind === 'turn' ? 'scale-110 cursor-grabbing' : 'cursor-grab'}`}
+                        style={{ left: `${h.x * 100}%`, top: `${h.y * 100}%` }}
+                      >
+                        ↻
+                      </button>
+                    );
+                  })()
+                : null}
             </>
           ) : null}
 
@@ -548,7 +654,8 @@ export function AreaEditor({
         {message && !error ? <p className="text-xs text-zinc-500">{message}</p> : null}
 
         <p className="text-[11px] leading-relaxed text-zinc-600">
-          Drag inside an area to move the whole print, or a corner to reshape it. Arrow keys
+          Drag inside an area to move the whole print, a corner to reshape it, or the{' '}
+          <span className="text-zinc-400">&#8635;</span> handle above it to turn it. Arrow keys
           nudge the selected area and <kbd className="rounded bg-zinc-800 px-1">[</kbd>{' '}
           <kbd className="rounded bg-zinc-800 px-1">]</kbd> tilt it; hold shift for finer
           steps. A corner pushed into a fold is what makes the result sit in the fabric

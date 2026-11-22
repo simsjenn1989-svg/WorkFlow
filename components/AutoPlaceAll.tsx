@@ -4,17 +4,17 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 /**
- * Reshape every mockup's areas to the print area at once.
+ * Place every mockup's print area over the garment in its photo.
  *
- * Marking sixteen photos by hand is why this exists: the print canvas changed what an area
- * means — it is now the whole printable panel rather than a box around the artwork — and
- * every mockup marked before that is the wrong shape. Doing them one at a time is the same
- * click sixteen times.
+ * Marking fifteen photos by hand is why this exists, and doing it by hand is also why it
+ * had to be measured rather than eyeballed: a box set to a fixed fraction of the PHOTO is
+ * a sensible print on a close crop and runs off the sleeves on a wide shot. The detector
+ * finds the shirt and sizes to that. See lib/render/garment.ts.
  *
- * One request per mockup, because each one has to download its photo to know its aspect.
- * The count is shown as it goes, so a slow run looks like progress rather than a hang.
+ * One request per mockup, because each one has to download and scan its photo. The count
+ * is shown as it goes, so a slow run looks like progress rather than a hang.
  */
-export function FitAllAreas({ ids }: { ids: string[] }) {
+export function AutoPlaceAll({ ids }: { ids: string[] }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
@@ -28,7 +28,7 @@ export function FitAllAreas({ ids }: { ids: string[] }) {
     for (const [i, id] of ids.entries()) {
       setProgress(`Fitting ${i + 1} of ${ids.length}…`);
       try {
-        const response = await fetch('/api/mockups/fit', {
+        const response = await fetch('/api/mockups/auto-place', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id }),
@@ -57,9 +57,9 @@ export function FitAllAreas({ ids }: { ids: string[] }) {
         <button
           className={`btn text-xs ${confirming ? 'text-amber-400 hover:text-amber-300' : ''}`}
           onClick={() => (confirming ? run() : setConfirming(true))}
-          title="Reshape every marked area to the print area's proportions, keeping its centre and width"
+          title="Find the garment in every photo and put its print area on the chest"
         >
-          {confirming ? `Reshape all ${ids.length}?` : 'Fit all to print area'}
+          {confirming ? `Place all ${ids.length}?` : 'Auto-place all'}
         </button>
       )}
       {error ? <span className="text-xs text-rose-400">{error}</span> : null}

@@ -217,10 +217,20 @@ oversells the product. Keep it close.
 
 You do this **once per photo**. Every design from then on reuses it.
 
-**Fit all to print area** on the Mockups list does it for every marked mockup at once —
-useful after a preset change, when every area marked under the old rules is the wrong
-shape. It reshapes each one keeping its centre and width, re-measures the garment under it,
-and tells you which it's on as it goes. Ask twice before it runs; there's no undo.
+**Auto-place** does the marking for you. It finds the shirt in the photo — a black garment
+is the dark, desaturated region, which skin, hair, denim and a lit room are not — measures
+its shoulder width and where the neckline ends, and puts the print at **60% of the shoulder
+width**, centred on the garment, just below the collar. On a two-up photo it detects each
+half separately.
+
+Why measured rather than eyeballed: a box set to a fixed fraction of the *photo* is a
+sensible print on a close crop and runs off the sleeves on a wide shot. Across these
+mockups the shoulder width ranges from 39% to 66% of the frame, so no single fraction of
+the image works for all of them.
+
+It's on each mockup (next to Fit to print area) and as **Auto-place all** on the Mockups
+list, which does every photo in turn and says which one it's on. It saves as it goes and
+there's no undo, so it asks twice.
 
 ---
 

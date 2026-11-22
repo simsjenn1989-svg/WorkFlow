@@ -181,6 +181,40 @@ export function AreaEditor({
     scheduleRender();
   }
 
+  const [placing, setPlacing] = useState(false);
+
+  async function autoPlace() {
+    setPlacing(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/mockups/auto-place', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: template.id }),
+      });
+      const body = (await response.json().catch(() => null)) as
+        | { areas?: { id: string; label: string; corners: NormQuad }[]; error?: string }
+        | null;
+      if (!response.ok || !body?.areas) throw new Error(body?.error ?? 'Auto-place failed.');
+
+      // Saved server-side already; this is only so the canvas shows it straight away.
+      setAreas((prev) =>
+        body.areas!.map((a, i) => ({
+          ...(prev[i] ?? { designId: designs[0]?.id ?? '' }),
+          id: a.id,
+          label: a.label,
+          corners: a.corners,
+          designId: prev[i]?.designId ?? designs[0]?.id ?? '',
+        })),
+      );
+      setMessage('Placed on the garment. Adjust from here, then save.');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setPlacing(false);
+    }
+  }
+
   function addArea() {
     setAreas((prev) => {
       const index = prev.length;
@@ -419,13 +453,29 @@ export function AreaEditor({
             perspective has no single aspect to hold. So: snap to the right shape, then
             fine-tune from there.
           */}
-          <button
-            className="btn ml-auto px-2 py-0.5 text-xs"
-            onClick={() => transformActive((c) => snapToPrintAspect(c, aspect, areaAspect))}
-            title={`Reshape to ${printArea.width}x${printArea.height}, keeping the centre and width`}
-          >
-            Fit to print area
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            {/*
+              Auto-place measures the shirt in the photo and puts the areas on it. Marking
+              by eye went wrong in a repeatable way — a fixed fraction of the PHOTO is a
+              sensible print on a close crop and runs off the sleeves on a wide shot — so
+              the detector sizes to the garment instead. See lib/render/garment.ts.
+            */}
+            <button
+              className="btn px-2 py-0.5 text-xs"
+              disabled={placing}
+              onClick={autoPlace}
+              title="Find the shirt in this photo and put the print area on its chest"
+            >
+              {placing ? 'Placing…' : 'Auto-place'}
+            </button>
+            <button
+              className="btn px-2 py-0.5 text-xs"
+              onClick={() => transformActive((c) => snapToPrintAspect(c, aspect, areaAspect))}
+              title={`Reshape to ${printArea.width}x${printArea.height}, keeping the centre and width`}
+            >
+              Fit to print area
+            </button>
+          </div>
         </div>
 
         {error ? <p className="text-xs text-rose-400">{error}</p> : null}

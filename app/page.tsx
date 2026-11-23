@@ -36,7 +36,14 @@ export default async function BoardPage({
 
   const total = Object.values(board).reduce((n, cards) => n + cards.length, 0);
   const showTerminal = TERMINAL_STAGES.some((s) => board[s].length > 0);
-  const columns: Stage[] = [...STAGES, ...(showTerminal ? TERMINAL_STAGES : [])];
+  // Print ready is a stage nothing reaches any more — the canvas is built when a keeper is
+  // picked — so it only appears while something is still sitting in it. Same treatment as
+  // Rejected and Archived: a column for a step that no longer exists is a question every
+  // time you look at the board.
+  const columns: Stage[] = [
+    ...STAGES.filter((s) => s !== 'print_ready' || board.print_ready.length > 0),
+    ...(showTerminal ? TERMINAL_STAGES : []),
+  ];
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

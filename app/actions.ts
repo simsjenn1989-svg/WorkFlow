@@ -5,7 +5,8 @@ import { z } from 'zod';
 import { db } from '@/lib/supabase';
 import { filesOwnedByDesign, removeAll } from '@/lib/storage';
 import { putArtwork } from '@/lib/artworks';
-import { isStage, nextStage, previousStage, type Stage } from '@/lib/stages';
+import { adoptVariant } from '@/lib/adopt';
+import { isStage, nextStage, previousStage, STAGES, type Stage } from '@/lib/stages';
 
 /** Shape returned by every action so the UI can show a message without throwing. */
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -14,14 +15,64 @@ function fail(error: string): ActionResult {
   return { ok: false, error };
 }
 
-/** Move a design to an explicit stage. The database trigger records the history. */
+/**
+ * Move a design to an explicit stage. The database trigger records the history.
+ *
+ * Moving a generated design forward counts as picking its variant, when there is only one
+ * to pick. Without this the card said Approved and held no artwork at all — 24 of them, at
+ * the point this was found — and every one would have failed the first time it reached a
+ * render or a push with "no front artwork for this design". Approving is still the
+ * operator's decision; this only takes the decision they just made and writes it down.
+ *
+ * Two or more variants for a placement is a real choice, so it refuses rather than guesses.
+ */
 export async function setStage(designId: string, stage: string): Promise<ActionResult> {
   if (!isStage(stage)) return fail(`"${stage}" is not a stage.`);
+
+  // Rejected and archived are not "forward", so they are not in STAGES and index -1 here,
+  // which correctly skips the adoption.
+  const order = (STAGES as readonly string[]).indexOf(stage);
+  const beyondGenerated = order > (STAGES as readonly string[]).indexOf('generated');
+  if (beyondGenerated) {
+    const problem = await adoptPendingVariant(designId);
+    if (problem) return fail(problem);
+  }
+
   const { error } = await db().from('designs').update({ stage }).eq('id', designId);
   if (error) return fail(`Moving it failed: ${error.message}`);
   revalidatePath('/');
   revalidatePath(`/designs/${designId}`);
   return { ok: true };
+}
+
+/**
+ * Give a design its artwork from the one variant it has, if it has none yet.
+ *
+ * Returns a message when the caller should stop, and nothing when the design is fine —
+ * either because it already has artwork, or because it never had variants to begin with
+ * (an upload, or a card being moved around before anything was made).
+ */
+async function adoptPendingVariant(designId: string): Promise<string | null> {
+  const { data: artwork } = await db()
+    .from('design_artworks')
+    .select('id')
+    .eq('design_id', designId)
+    .limit(1);
+  if ((artwork ?? []).length > 0) return null;
+
+  const { data: variants } = await db()
+    .from('design_variants')
+    .select('id,label')
+    .eq('design_id', designId);
+
+  const rows = (variants ?? []) as { id: string; label: string }[];
+  if (rows.length === 0) return null;
+  if (rows.length > 1) {
+    return 'This design has several variants and none picked. Choose one first — the app will not guess which.';
+  }
+
+  const result = await adoptVariant(designId, rows[0]!.id);
+  return 'error' in result ? result.error : null;
 }
 
 export async function advanceDesign(designId: string, from: string): Promise<ActionResult> {

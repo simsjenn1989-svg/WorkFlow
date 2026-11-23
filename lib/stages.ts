@@ -49,13 +49,19 @@ export const STAGE_META: Record<Stage, StageMeta> = {
   },
   approved: {
     label: 'Approved',
-    hint: 'Ready to make print-ready',
+    // Was "Ready to make print-ready", which described a step that no longer exists: the
+    // print canvas is built the moment a keeper is picked, and the push rebuilds it if the
+    // preset's print area has changed. There is nothing to do between here and rendering
+    // or pushing.
+    hint: 'Render mockups, or push a draft',
     accent: 'bg-blue-500',
     phase: 2,
   },
   print_ready: {
     label: 'Print ready',
-    hint: 'Sized for the blueprint',
+    // Kept for designs that were put here before approving did the sizing. Nothing moves a
+    // design here now and nothing needs to.
+    hint: 'Nothing to do — sizing happens at approval',
     accent: 'bg-cyan-500',
     phase: 3,
   },

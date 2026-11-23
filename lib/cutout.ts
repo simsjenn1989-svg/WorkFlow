@@ -36,6 +36,16 @@ export type CutoutOptions = {
    * fill leaks through an anti-aliased outline into the subject.
    */
   tolerance?: number;
+  /**
+   * The largest enclosed background-coloured region to treat as a hole, as a fraction of
+   * the image.
+   *
+   * This is the whole difference between a letter's counter and a white beard. A counter is
+   * small: on a 2160x3840 design the largest was 5,570px, 0.07% of the image. A painted
+   * white shape that belongs to the artwork is far bigger. 1% leaves an order of magnitude
+   * of headroom either side.
+   */
+  maxPocket?: number;
 };
 
 /**
@@ -109,7 +119,19 @@ export async function cutBackground(
   const chroma = saturation(background) > 120;
   const removed = chroma
     ? keyColour(data, channels, background, options.tolerance ?? 120)
-    : floodFromBorder(data, channels, width, height, tones, options.tolerance ?? 60);
+    : floodFromBorder(data, channels, width, height, tones, options.tolerance ?? 60) +
+      // The flood can only reach background connected to the edge, which leaves every
+      // counter — the hole in an O, the gap inside an e, the space a script loop encloses.
+      // Measured on one real design: 6,236 separate white pockets survived it.
+      clearPockets(
+        data,
+        channels,
+        width,
+        height,
+        tones,
+        options.tolerance ?? 60,
+        options.maxPocket ?? 0.01,
+      );
 
   const png = await sharp(data, { raw: { width, height, channels } })
     .png({ compressionLevel: 9 })
@@ -180,6 +202,80 @@ function despill(data: Buffer, i: number, high: number, mid: number, weak: numbe
   const ceiling = data[i + weak]!;
   if (data[i + high]! > ceiling) data[i + high] = ceiling;
   if (data[i + mid]! > ceiling) data[i + mid] = ceiling;
+}
+
+/**
+ * Remove the background trapped inside the artwork.
+ *
+ * The flood can only take what is connected to the edge, so every counter survives it —
+ * the hole in an O, the gap inside an e, the space a looping script encloses. On a real
+ * design this left 6,236 separate white pockets, and they print as ink.
+ *
+ * What makes this safe is the size cap rather than the colour test. A white region that
+ * belongs to the artwork — a beard, a snowdrift, a cream highlight — is large. A counter is
+ * tiny: the biggest on that design was 5,570px, 0.07% of the image, against a 1% cap. So
+ * "background-coloured and small and fully enclosed" is a hole, and anything bigger is left
+ * alone even if it matches the background exactly.
+ *
+ * Runs after the flood, which has already cleared everything reachable, so every region
+ * found here is enclosed by construction.
+ */
+function clearPockets(
+  data: Buffer,
+  channels: number,
+  width: number,
+  height: number,
+  tones: [number, number, number][],
+  tolerance: number,
+  maxFraction: number,
+): number {
+  const limit = Math.max(1, Math.floor(width * height * maxFraction));
+  const seen = new Uint8Array(width * height);
+  const matches = (p: number) => {
+    const i = p * channels;
+    if (data[i + 3]! < 250) return false;
+    const here: [number, number, number] = [data[i]!, data[i + 1]!, data[i + 2]!];
+    return tones.some((tone) => distance(here, tone) <= tolerance);
+  };
+
+  let removed = 0;
+  const region: number[] = [];
+  const stack: number[] = [];
+
+  for (let start = 0; start < width * height; start++) {
+    if (seen[start] || !matches(start)) continue;
+
+    region.length = 0;
+    stack.length = 0;
+    stack.push(start);
+    seen[start] = 1;
+
+    // Collected whole before anything is removed: a region is only a hole once its final
+    // size is known, and stopping early at the cap would clear part of a large shape.
+    while (stack.length > 0) {
+      const p = stack.pop()!;
+      region.push(p);
+      const x = p % width;
+      const y = (p - x) / width;
+      if (x > 0) consider(p - 1);
+      if (x < width - 1) consider(p + 1);
+      if (y > 0) consider(p - width);
+      if (y < height - 1) consider(p + width);
+    }
+
+    if (region.length <= limit) {
+      for (const p of region) data[p * channels + 3] = 0;
+      removed += region.length;
+    }
+  }
+
+  return removed;
+
+  function consider(p: number) {
+    if (seen[p] || !matches(p)) return;
+    seen[p] = 1;
+    stack.push(p);
+  }
 }
 
 /** Remove only background reachable from outside the image, leaving the subject's own fills. */

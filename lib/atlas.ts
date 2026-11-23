@@ -256,10 +256,27 @@ export async function listImageModels(): Promise<AtlasModel[]> {
   );
 }
 
-/** Keep only the models whose schema publishes a transparent background. */
+/**
+ * Models offered despite having no transparency option, because they were asked for.
+ *
+ * GPT Image 2 publishes `output_format`, `quality`, `size` and `moderation` — and no
+ * `background`, so it cannot be asked to leave one out. It is here because it was wanted
+ * anyway; its background is cut by lib/cutout.ts like any other opaque model, with the
+ * usual cost to soft edges. Keeping this as a named list rather than loosening the filter
+ * means every other opaque model stays out.
+ */
+const ALWAYS_OFFERED = new Set([
+  'openai/gpt-image-2/text-to-image',
+  'openai/gpt-image-2-developer/text-to-image',
+  'openai/gpt-image-2/edit',
+  'openai/gpt-image-2-developer/edit',
+]);
+
+/** Keep the models whose schema publishes a transparent background, plus the named few. */
 async function transparentOnly(models: AtlasModel[]): Promise<AtlasModel[]> {
   const checked = await Promise.all(
     models.map(async (model) => {
+      if (ALWAYS_OFFERED.has(model.model)) return model;
       try {
         return transparencyField((await getModelInput(model)).fields) ? model : null;
       } catch {

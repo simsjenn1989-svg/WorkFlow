@@ -99,8 +99,8 @@ pick one and you get a box per slot to fill in.
 
 Under the box you'll see **"Sent to the model"** — the prompt as Atlas will receive it.
 
-**Only models that can leave the background out are offered** — 7 of Atlas's 76
-text-to-image models, and 9 of 84 for redrawing a reference. The app sets
+**Only models that can leave the background out are offered**, plus GPT Image 2 by
+request — 9 of Atlas's 76 text-to-image models, and 11 of 84 for redrawing a reference. The app sets
 `background: transparent` and sends your prompt untouched, so the file arrives ready to
 print, feathered edges and all, with no cutout involved.
 
@@ -109,12 +109,17 @@ and cutting one off afterwards is an in-or-out decision per pixel: it loses the 
 every letter and eats a design whose own colours sit near the background being removed.
 A better picture you can't print isn't a better picture.
 
+**GPT Image 2 is the exception** — it has no transparency option, so its background is cut
+out afterwards with the usual cost to soft edges. The hint under the prompt box tells you
+which kind of model you've picked.
+
 Do ask for **light colours**. You print on black; dark art disappears.
 
 ### Model and count
 
 The models are listed with their price per image — **$0.003** (GPT Image 2.5 Flare) to
-**$0.030** (the Developer variants), with **Seedream v5.5** at $0.016 as the default. Resolution defaults to the
+**$0.030** (the Developer variants), with **Seedream v5.5** at $0.016 as the default and
+**GPT Image 2** at $0.004. Resolution defaults to the
 largest the model offers, because print needs the pixels.
 
 Set **how many** images, optionally a **collection** and **tags**, then generate. Some

@@ -1,35 +1,36 @@
 /**
- * What to tell an image model about the background, and how to undo what people type.
+ * What to tell an image model about the background.
  *
- * Asking for a "transparent background" does not work, and fails in a way that looks like it
- * worked. Nano Banana 2.1 publishes no transparent output for text-to-image — the file comes
- * back three-channel, no alpha at all — so when the prompt insists on transparency the model
- * satisfies it the only way a painter can: it draws the grey-and-white checkerboard that
- * means "transparent" in an image editor. Measured on a real generation (prediction
- * bab8c23d, 5c): a 3584x4800 PNG, hasAlpha false, 100px squares of RGB(254,254,254) and
- * RGB(222,222,224) covering every part of the canvas the artwork did not.
+ * The history matters, because both earlier answers were wrong in instructive ways.
  *
- * The cutout then made it worse. Two tones 96 apart, a flood tolerance of 60: the white
- * squares were removed and the grey ones kept, as a hard speckled halo around the art. Only
- * 55% of the image went, so the "this cutout ate the design" guard at 97% never fired and
- * the ruined variant was stored as if it were fine.
+ * Asking for a "transparent background" in prose does not work on a model that cannot
+ * produce one. Nano Banana 2.1 publishes no alpha for text-to-image, so when the prompt
+ * insisted, it satisfied the instruction the only way a painter can: it drew the
+ * grey-and-white checkerboard that means "transparent" in an image editor. Measured on a
+ * real generation — 3584x4800, hasAlpha false, 100px squares of RGB(254,254,254) and
+ * RGB(222,222,224) over every part of the canvas the artwork did not cover.
  *
- * So the rule is a chroma screen, the same one the style path has always used, applied to
- * every generation rather than only the ones that start from a reference.
+ * The fix then was a magenta chroma screen, keyed out afterwards. That worked until it
+ * didn't: the key is a hard in-or-out decision per pixel, so it cannot keep the feathered
+ * rim of a letter, and it eats a design whose own colours sit near the screen. A pink
+ * script on magenta is exactly the case it fails.
+ *
+ * So the answer is neither: ask the MODEL for transparency, through the parameter it
+ * publishes. 7 of 76 text-to-image models and 9 of 84 image-to-image ones have one — run
+ * `scripts/transparent-models.mjs` for the current list. Measured on seedream-v5.5 with
+ * `background: transparent`: four channels, corners at alpha 0, 51.6% clear, and 0.7%
+ * partial — the soft edge no chroma key can reproduce.
+ *
+ * A model without that parameter gets no background instruction at all. Whatever it draws
+ * is cut by lib/cutout.ts, which is the honest fallback rather than a trick that distorts
+ * the art.
  */
 
-/** The background instruction every generation gets, whatever the person typed. */
-export const CHROMA_SCREEN = [
-  'Place the artwork on a completely solid flat background of pure magenta RGB(255, 0, 255).',
-  'The magenta must be one uniform colour with no gradient, texture or shading, and must not appear anywhere in the artwork itself.',
-].join(' ');
-
 /**
- * Phrasings that ask for transparency, which no model this shop uses can deliver.
+ * Phrasings that ask for transparency, which a model without the parameter cannot give.
  *
- * Written to catch the clause and the punctuation holding it to the sentence, so removing it
- * leaves readable English rather than a dangling comma. The parenthesised spec note is its
- * own case because it is a whole aside, not a clause.
+ * Still stripped for those models, because the checkerboard above is what happens
+ * otherwise, and it cost a whole generation to learn.
  */
 const TRANSPARENCY = [
   /\s*\((?=[^)]*transparent)[^)]*\)/gi,
@@ -38,31 +39,24 @@ const TRANSPARENCY = [
   /(?:^|[,.;]\s*|\s+and\s+)png\s+transparent/gi,
 ];
 
-/** True when the prompt already carries the chroma screen, so it is not added twice. */
-export function mentionsChromaScreen(prompt: string): boolean {
-  return /magenta/i.test(prompt);
-}
-
 /**
- * The prompt as it should actually be sent: no transparency talk, chroma screen on the end.
+ * The prompt as it should be sent.
  *
- * Both the Generate form and the API route call this. The form so the person reads the real
- * prompt before spending anything, the route so nothing reaches Atlas without it — a saved
- * prompt, a retry of an old generation or a direct call would otherwise slip past.
+ * Nothing is added. On a model that can give real transparency the prompt goes through
+ * untouched; on one that cannot, the transparency talk comes out so it does not paint a
+ * checkerboard.
  */
-export function withPrintBackground(prompt: string): string {
+export function preparePrompt(prompt: string, canDoTransparency: boolean): string {
+  if (canDoTransparency) return prompt.trim();
+
   let body = prompt;
   for (const pattern of TRANSPARENCY) body = body.replace(pattern, '');
 
-  body = body
+  return body
     .replace(/\s+/g, ' ')
     .replace(/\s+([,.;])/g, '$1')
     .replace(/([,;])\s*(?=[,.;])/g, '')
     .replace(/^[\s,.;]+/, '')
     .replace(/[\s,;]+$/, '')
     .trim();
-
-  if (!body) return CHROMA_SCREEN;
-  if (mentionsChromaScreen(body)) return body;
-  return `${body.replace(/\.+$/, '')}. ${CHROMA_SCREEN}`;
 }

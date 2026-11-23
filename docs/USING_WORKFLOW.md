@@ -97,13 +97,18 @@ for a cat"*.
 Either type one or pick a saved one from the dropdown. Saved prompts can have `{{slots}}` —
 pick one and you get a box per slot to fill in.
 
-Under the box you'll see **"Sent to the model"**. That's the real prompt, after the app
-rewrites it. It will differ from what you typed, deliberately:
+Under the box you'll see **"Sent to the model"** — the prompt as Atlas will receive it.
 
-> **Don't ask for a transparent background.** No model in the list can make one. Asked for
-> transparency, they paint the grey-and-white checkerboard *as artwork* — this happened for
-> real and cost a generation. The app strips that phrasing and adds a magenta screen
-> instead, which is cut out automatically once the image lands.
+**Backgrounds depend on the model.** Seven of the 76 text-to-image models can leave the
+background out themselves, through a `background: transparent` option — `seedream-v5.5` and
+the `gpt-image` family. On those the app sets it and sends your prompt untouched, and the
+file arrives ready to print, soft edges and all.
+
+On any other model the app adds nothing and strips transparency phrasing from what you
+typed, because a model that can't make alpha paints the grey-and-white checkerboard *as
+artwork* when asked — that happened for real and cost a generation. Whatever background it
+does draw is cut out afterwards, which works on a flat background and struggles with glows
+and soft edges. The hint under the prompt box says which kind of model you've picked.
 
 Do ask for **light colours**. You print on black; dark art disappears.
 

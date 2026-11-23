@@ -11,9 +11,10 @@ import {
   isAtlasConfigured,
   referenceField,
   startGeneration,
+  transparencyField,
 } from '@/lib/atlas';
 import { normaliseLabel, PRIMARY_LABEL } from '@/lib/artworks';
-import { withPrintBackground } from '@/lib/background';
+import { preparePrompt } from '@/lib/background';
 
 export const runtime = 'nodejs';
 
@@ -64,13 +65,6 @@ export async function POST(request: Request) {
   }
   const input = parsed.data;
 
-  // What actually goes to Atlas: the typed prompt with any "transparent background" taken
-  // out and the chroma screen put on. Enforced here rather than only in the form because a
-  // saved prompt, a retry of an older generation and a direct call all arrive through this
-  // route, and one of them asking for transparency is how a whole generation comes back with
-  // a painted checkerboard on it. The design's title still comes from what the person wrote.
-  const prompt = withPrintBackground(input.prompt);
-
   const model = await getModel(input.model);
   if (!model) {
     return NextResponse.json({ error: `Unknown model "${input.model}".` }, { status: 400 });
@@ -88,6 +82,18 @@ export async function POST(request: Request) {
   const fields = await getModelFields(model);
   const howMany = countField(fields);
   const count = howMany ? input.count : 1;
+
+  /*
+    Transparency comes from the model, not from the prompt.
+
+    Where the model publishes a `background` option, it is set and the prompt is left
+    exactly as written. Where it does not, no background instruction is added at all —
+    only transparency phrasing is removed, because a model that cannot make alpha paints
+    the editor's checkerboard when asked for it. Whatever background it does draw is cut
+    afterwards by lib/cutout.ts.
+  */
+  const transparency = transparencyField(fields);
+  const prompt = preparePrompt(input.prompt, transparency !== null);
 
   const costCents = estimateCents(model, count);
   try {
@@ -174,6 +180,8 @@ export async function POST(request: Request) {
       ...input.params,
       ...reference,
       ...(howMany ? { [howMany]: count } : {}),
+      // Last, so it wins over a stale `background` left in the saved parameters.
+      ...(transparency ? { [transparency.name]: transparency.value } : {}),
     });
     predictionId = prediction.id;
   } catch (error) {

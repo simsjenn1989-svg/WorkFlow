@@ -217,6 +217,26 @@ export function countField(fields: AtlasField[]): string | null {
   );
 }
 
+/**
+ * The field that asks for a transparent background, if the model has one.
+ *
+ * 7 of 76 text-to-image models and 9 of 84 image-to-image ones do, all of them spelling it
+ * as a `background` enum containing `transparent` — but the enum's order and its other
+ * values differ, so the value is read rather than assumed. See
+ * `scripts/transparent-models.mjs`.
+ *
+ * This is what replaced painting a magenta screen into the prompt and keying it out: a key
+ * is in-or-out per pixel, so it loses the feathered rim of every letter and eats a design
+ * whose colours sit near the screen.
+ */
+export function transparencyField(fields: AtlasField[]): { name: string; value: string } | null {
+  for (const field of fields) {
+    const match = (field.enum ?? []).find((v) => /transparent/i.test(v));
+    if (match) return { name: field.name, value: match };
+  }
+  return null;
+}
+
 /** Every text-to-image model Atlas currently offers. */
 export async function listImageModels(): Promise<AtlasModel[]> {
   return (await catalogue())

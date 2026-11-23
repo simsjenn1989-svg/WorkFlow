@@ -8,8 +8,8 @@ import type { Collection, DesignCard } from '@/lib/types';
 import { labelOptions, PRIMARY_LABEL } from '@/lib/artworks';
 import { ReferencePanel, type Reference } from './ReferencePanel';
 import { fillSlots, slotsIn } from '@/lib/queries';
-import { countField } from '@/lib/atlas';
-import { withPrintBackground } from '@/lib/background';
+import { countField, transparencyField } from '@/lib/atlas';
+import { preparePrompt } from '@/lib/background';
 
 type Phase = 'idle' | 'starting' | 'generating' | 'done' | 'error';
 
@@ -135,6 +135,9 @@ export function GenerateForm({
     return model && !matched.some((m) => m.model === model.model) ? [model, ...matched] : matched;
   }, [available, search, model]);
 
+  /** Whether this model can leave the background out itself. */
+  const transparent = useMemo(() => transparencyField(fields), [fields]);
+
   /** Whether this model takes a count at all; see countField in lib/atlas.ts. */
   const makesMany = useMemo(() => countField(fields) !== null, [fields]);
   /** What will really be made, which is what the estimate has to be based on. */
@@ -148,7 +151,10 @@ export function GenerateForm({
     deletes words the person typed ("transparent background") and silently editing someone's
     prompt is worse than the bug it fixes.
   */
-  const sentPrompt = useMemo(() => withPrintBackground(finalPrompt), [finalPrompt]);
+  const sentPrompt = useMemo(
+    () => preparePrompt(finalPrompt, transparencyField(fields) !== null),
+    [fields, finalPrompt],
+  );
   const estimateCents = Math.round((model?.basePriceUsd ?? 0) * effectiveCount * 100);
   const overBudget = estimateCents > remainingCents;
 
@@ -343,10 +349,22 @@ export function GenerateForm({
           ) : null}
 
           <p className="text-[11px] leading-relaxed text-zinc-600">
-            You print on black, so ask for light colours. Dark art disappears on a dark tee.
-            Don&rsquo;t ask for a transparent background — no model here can make one, and asking
-            makes them paint the grey checkerboard instead. Every prompt gets a magenta screen
-            added, which is cut out after the image lands.
+            You print on black, so ask for light colours — dark art disappears on a dark tee.
+            {transparent ? (
+              <>
+                {' '}
+                This model leaves the background out itself, so the file arrives ready to
+                print.
+              </>
+            ) : (
+              <>
+                {' '}
+                This model can&rsquo;t make a transparent background, so whatever it draws
+                behind the art is cut out afterwards. That works on a flat background and
+                struggles with glows and soft edges — pick a model that supports
+                transparency for those.
+              </>
+            )}
           </p>
         </section>
 

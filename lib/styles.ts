@@ -1,4 +1,3 @@
-import { CHROMA_SCREEN } from './background';
 /**
  * Named styles for redrawing a reference image.
  *
@@ -196,13 +195,11 @@ export function buildReferencePrompt(brief: ReferenceBrief): string {
       : 'Leave out all text and lettering; illustration only.',
     'Flat vector-style illustration suitable for screen printing on a dark garment.',
     'No scene, no shadow, no mockup, no frame.',
-    // A chroma colour rather than "transparent background", because the best models for this
-    // cannot output transparency — only 8 of Atlas's 84 can, and none of the good ones. Asked
-    // for a dark background they draw a near-black rectangle, and a border flood cannot
-    // remove the pockets of it enclosed by the subject, so one survived between Santa's arm
-    // and a reindeer. Pure magenta is removable everywhere at once because nothing in the
-    // artwork is that colour, enclosed or not.
-    CHROMA_SCREEN,
+    // No background instruction. A magenta chroma screen lived here, and it was removable
+    // in theory and destructive in practice: keying is an in-or-out decision per pixel, so
+    // every feathered edge is lost, and a pink design on a magenta screen loses parts of
+    // itself. Transparency is asked of the model through its own `background` parameter
+    // where it has one, and cut by lib/cutout.ts where it does not.
   ]
     .filter(Boolean)
     .join(' ');

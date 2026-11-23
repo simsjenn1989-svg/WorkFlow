@@ -9,8 +9,14 @@ import { GenerateForm } from './GenerateForm';
 
 export const dynamic = 'force-dynamic';
 
-/** Sensible starting point: strong in-image text and a real alpha channel. */
-const PREFERRED = 'openai/gpt-image-2.6-flare/text-to-image';
+/**
+ * Sensible starting point.
+ *
+ * Seedream v5.5: measured with `background: transparent` it returns a genuine alpha
+ * channel — corners at 0, 51.6% clear, 0.7% feathered — which the gpt-image models also do
+ * but with weaker drawing. Both are in the list; this is only where it opens.
+ */
+const PREFERRED = 'bytedance/seedream-v5.5/text-to-image';
 
 export default async function GeneratePage() {
   if (!isConfigured) return <SetupNotice />;

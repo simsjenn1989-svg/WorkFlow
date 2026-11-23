@@ -155,30 +155,32 @@ function byName(a: AtlasModel, b: AtlasModel): number {
  * Kept separate from the text-to-image list because the two cannot be swapped: an edit model
  * rejects a request with no image, and a text-to-image model ignores one.
  *
- * Only 8 of the 84 can output a transparent background, which for a garment print is not a
- * preference — art with a baked background prints as a rectangle. They are not filtered out
- * here, because the schema would have to be fetched for all 84 to know, but
- * `PREFERRED_EDIT_MODEL` is one of the 8 and the screen checks the chosen model's own schema
- * before letting it run.
+ * Filtered to the 9 of 84 that can output a transparent background, for the same reason as
+ * the text-to-image list: art with a baked background prints as a rectangle on a garment,
+ * and cutting one off afterwards loses every soft edge. Reading 84 schemas to know is
+ * affordable now that they are cached for the life of the process.
  */
 export async function listEditModels(): Promise<AtlasModel[]> {
-  return (await catalogue())
-    .filter((m) => m.type === 'Image' && (m.categories ?? []).includes('IMAGE-TO-IMAGE') && m.schema)
-    .map(toModel)
-    .sort((a, b) => a.basePriceUsd - b.basePriceUsd || byName(a, b));
+  const models = await transparentOnly(
+    (await catalogue())
+      .filter((m) => m.type === 'Image' && (m.categories ?? []).includes('IMAGE-TO-IMAGE') && m.schema)
+      .map(toModel),
+  );
+  return models.sort((a, b) => a.basePriceUsd - b.basePriceUsd || byName(a, b));
 }
 
 /**
  * The default for redrawing a reference.
  *
- * Nano Banana 2.1, at $0.018 and up to 4k, after the gpt-image edit models were judged
- * mediocre on real output.
+ * Was Nano Banana 2.1, chosen for drawing quality after the gpt-image edit models were
+ * judged mediocre on real output. It publishes no `background` field, so now that the list
+ * only offers models that can leave the background out, it is not in it.
  *
- * It cannot produce a transparent background — no Nano Banana variant publishes a
- * `background` field, and only 8 of the 84 image-to-image models do at all. For a garment
- * print that matters, so the background is cut afterwards; see `lib/cutout.ts`.
+ * Seedream v5.5 instead: measured on a real generation with `background: transparent` it
+ * returned four channels, corners at alpha 0, 51.6% clear and 0.7% partial — the feathered
+ * edge a cutout cannot reproduce.
  */
-export const PREFERRED_EDIT_MODEL = 'google/nano-banana-2.1-developer/edit';
+export const PREFERRED_EDIT_MODEL = 'bytedance/seedream-v5.5/edit';
 
 /**
  * Which field this model takes its reference image in.
@@ -237,12 +239,36 @@ export function transparencyField(fields: AtlasField[]): { name: string; value: 
   return null;
 }
 
-/** Every text-to-image model Atlas currently offers. */
+/**
+ * The text-to-image models worth offering: the ones that can leave the background out.
+ *
+ * Filtered rather than merely labelled, because a model without it is a wasted generation
+ * for this shop. Art with a background prints as a rectangle on a garment, and cutting one
+ * off afterwards is an in-or-out decision per pixel — it loses the feathered rim of every
+ * letter and eats a design whose own colours sit near the background it is removing. 7 of
+ * 76 survive this filter; the rest are a better picture that cannot be printed.
+ */
 export async function listImageModels(): Promise<AtlasModel[]> {
-  return (await catalogue())
-    .filter((m) => m.type === 'Image' && (m.categories ?? []).includes('TEXT-TO-IMAGE') && m.schema)
-    .map(toModel)
-    .sort(byName);
+  return transparentOnly(
+    (await catalogue())
+      .filter((m) => m.type === 'Image' && (m.categories ?? []).includes('TEXT-TO-IMAGE') && m.schema)
+      .map(toModel),
+  );
+}
+
+/** Keep only the models whose schema publishes a transparent background. */
+async function transparentOnly(models: AtlasModel[]): Promise<AtlasModel[]> {
+  const checked = await Promise.all(
+    models.map(async (model) => {
+      try {
+        return transparencyField((await getModelInput(model)).fields) ? model : null;
+      } catch {
+        // A schema that will not load is a model that cannot be driven anyway.
+        return null;
+      }
+    }),
+  );
+  return checked.filter((m): m is AtlasModel => m !== null).sort(byName);
 }
 
 /**
@@ -301,9 +327,17 @@ export async function getModelFields(model: AtlasModel): Promise<AtlasField[]> {
  * guaranteed rejection on the rest, and finding out from Atlas after the job is submitted is
  * the wrong moment.
  */
+const schemas = new Map<string, { fields: AtlasField[]; required: string[] }>();
+
 export async function getModelInput(
   model: AtlasModel,
 ): Promise<{ fields: AtlasField[]; required: string[] }> {
+  // Kept for the life of the process. The model lists are now filtered by what each model
+  // can do, which means reading every schema in the catalogue — 76 of them for
+  // text-to-image — and these files do not change between requests.
+  const already = schemas.get(model.schema);
+  if (already) return already;
+
   const response = await fetch(model.schema, { cache: 'no-store' });
   if (!response.ok) return { fields: [], required: [] };
 
@@ -324,7 +358,7 @@ export async function getModelInput(
   const input = doc.components?.schemas?.Input;
   const properties = input?.properties ?? {};
 
-  return {
+  const parsed = {
     required: input?.required ?? [],
     fields: Object.entries(properties)
       .filter(([name]) => name !== 'model' && name !== 'prompt')
@@ -336,6 +370,9 @@ export async function getModelInput(
         ...(spec.enum ? { enum: spec.enum } : {}),
       })),
   };
+
+  schemas.set(model.schema, parsed);
+  return parsed;
 }
 
 // ---------------------------------------------------------------- generation

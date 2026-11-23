@@ -99,23 +99,22 @@ pick one and you get a box per slot to fill in.
 
 Under the box you'll see **"Sent to the model"** — the prompt as Atlas will receive it.
 
-**Backgrounds depend on the model.** Seven of the 76 text-to-image models can leave the
-background out themselves, through a `background: transparent` option — `seedream-v5.5` and
-the `gpt-image` family. On those the app sets it and sends your prompt untouched, and the
-file arrives ready to print, soft edges and all.
+**Only models that can leave the background out are offered** — 7 of Atlas's 76
+text-to-image models, and 9 of 84 for redrawing a reference. The app sets
+`background: transparent` and sends your prompt untouched, so the file arrives ready to
+print, feathered edges and all, with no cutout involved.
 
-On any other model the app adds nothing and strips transparency phrasing from what you
-typed, because a model that can't make alpha paints the grey-and-white checkerboard *as
-artwork* when asked — that happened for real and cost a generation. Whatever background it
-does draw is cut out afterwards, which works on a flat background and struggles with glows
-and soft edges. The hint under the prompt box says which kind of model you've picked.
+The rest are hidden on purpose. Art with a background prints as a rectangle on a garment,
+and cutting one off afterwards is an in-or-out decision per pixel: it loses the soft rim of
+every letter and eats a design whose own colours sit near the background being removed.
+A better picture you can't print isn't a better picture.
 
 Do ask for **light colours**. You print on black; dark art disappears.
 
 ### Model and count
 
-Every model is listed with its price per image — from **$0.003** (GPT Image 2.5 Flare) to
-**$0.212** (Kling Image 4.0 Long-Image). Search the list by name. Resolution defaults to the
+The models are listed with their price per image — **$0.003** (GPT Image 2.5 Flare) to
+**$0.030** (the Developer variants), with **Seedream v5.5** at $0.016 as the default. Resolution defaults to the
 largest the model offers, because print needs the pixels.
 
 Set **how many** images, optionally a **collection** and **tags**, then generate. Some

@@ -3,8 +3,6 @@ import { randomUUID } from 'node:crypto';
 import { BUCKET, db } from '@/lib/supabase';
 import { chargedCents, downloadOutput, getPrediction, isAtlasConfigured } from '@/lib/atlas';
 import { judgeFailure } from '@/lib/collect';
-import { adoptVariant } from '@/lib/adopt';
-import { normaliseDesign } from '@/lib/printify/canvas';
 import { cutBackground, needsCutout } from '@/lib/cutout';
 
 export const runtime = 'nodejs';
@@ -231,59 +229,19 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     .eq('id', job.id);
 
   /*
-    One image is not a choice.
+    Collection never approves anything.
 
-    The `generated` stage exists so that several images can be compared and one kept. Ask
-    for one and there is nothing to compare: the design still landed in Generated with
-    "Artwork 0" and "no placements", and the placement chosen on the Generate screen looked
-    like it had been discarded — when all that was missing was a click on the only option
-    there was.
+    There was a rule here that adopted a single-image generation on its own, on the
+    reasoning that one image is not a choice. It is still not a choice, but approving is
+    the operator's decision and the app does not get to make it — a card that moved to
+    Approved on its own is worse than a card waiting for a click, because the second is
+    obvious and the first is only noticed later.
 
-    So a generation that ASKED for one image adopts itself, onto the placement it was
-    generated for. Asking for two or more always waits, even if only one comes back:
-    wanting to choose and having nothing to choose from is a problem to notice, not to
-    paper over by approving what arrived.
-
-    This also matches what the Generate screen already promises when pointed at an existing
-    design: "the result becomes this design's front artwork, replacing any it already has".
+    Everything the picking needs is already in place: the variant carries the placement
+    chosen on the Generate screen, Provenance names it, and the panel says what hitting
+    "Use this one" will do.
   */
-  let adopted: string | null = null;
-  // Asked for one, and got one. Asking for two and receiving one is not a decision made —
-  // it is a decision missing, and adopting it silently is how a design ended up approved
-  // seconds after it was generated.
-  if (job.payload.count === 1 && prediction.outputs.length === 1) {
-    const { data: only } = await db()
-      .from('design_variants')
-      .select('id')
-      .eq('design_id', designId)
-      .eq('label', job.payload.label ?? 'front')
-      .limit(2);
-
-    const rows = (only ?? []) as { id: string }[];
-    // Only when this placement has exactly one variant. A second generation onto a design
-    // that already has options for the same spot is back to being a choice.
-    if (rows.length === 1 && rows[0]) {
-      const result = await adoptVariant(designId, rows[0].id);
-      if (!('error' in result)) {
-        adopted = result.label;
-        // Size it to the print area now, the same as picking by hand does. A failure here
-        // leaves the artwork in place without a canvas, which the renderer and the push
-        // both cope with.
-        try {
-          await normaliseDesign(designId);
-        } catch {
-          // Reported by the design page, where the artwork simply has no canvas yet.
-        }
-      }
-    }
-  }
-
-  return NextResponse.json({
-    status: 'completed',
-    designId,
-    adopted,
-    variants: await variantsFor(designId),
-  });
+  return NextResponse.json({ status: 'completed', designId, variants: await variantsFor(designId) });
 }
 
 async function variantsFor(designId: string) {

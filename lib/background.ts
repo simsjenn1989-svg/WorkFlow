@@ -40,14 +40,37 @@ const TRANSPARENCY = [
 ];
 
 /**
- * The prompt as it should be sent.
+ * Asking a capable model not to paint a backing panel.
  *
- * Nothing is added. On a model that can give real transparency the prompt goes through
- * untouched; on one that cannot, the transparency talk comes out so it does not paint a
+ * `background: transparent` is honoured at the edges and not in the middle. Measured on a
+ * seedream-v5.5 edit that only replaced some words: the file came back with a real alpha
+ * channel, 60% clear, and one opaque cream slab of 334,303px — 7.95% of the image — sitting
+ * behind the rewritten line. Nothing downstream removes it: the cutout is skipped precisely
+ * because the file already has alpha, and a size rule cannot separate the slab from the
+ * artwork's own cream, whose largest legitimate region in the same design was 2.22%.
+ *
+ * So it is said in words, to the only models that can act on it. This is not the magenta
+ * screen coming back: nothing is keyed, nothing is cut, and the instruction is dropped
+ * entirely for a model that cannot do transparency, where it would only produce a painted
  * checkerboard.
  */
+const NO_PANEL =
+  'Keep the background fully transparent. Do not put the artwork on a panel, card, box, banner or any filled shape behind it.';
+
+/**
+ * The prompt as it should be sent.
+ *
+ * On a model that can give real transparency the prompt is passed through with one line
+ * added about not painting a panel; on one that cannot, the transparency talk comes out so
+ * it does not paint a checkerboard.
+ */
 export function preparePrompt(prompt: string, canDoTransparency: boolean): string {
-  if (canDoTransparency) return prompt.trim();
+  if (canDoTransparency) {
+    const body = prompt.trim();
+    return /transparent/i.test(body) && /panel|card|box|banner/i.test(body)
+      ? body
+      : `${body.replace(/\.+$/, '')}. ${NO_PANEL}`;
+  }
 
   let body = prompt;
   for (const pattern of TRANSPARENCY) body = body.replace(pattern, '');

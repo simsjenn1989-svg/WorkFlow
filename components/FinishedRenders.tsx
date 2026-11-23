@@ -62,6 +62,21 @@ export function FinishedRenders({ renders }: { renders: FinishedRender[] }) {
 
         {renders.length > 0 ? (
           <div className="ml-auto flex items-center gap-2 text-xs">
+            {/*
+              A link, not a button with a fetch: the browser downloads it itself, so a
+              70 MB zip never has to exist as a blob in the tab. Selected ones when
+              something is selected, everything otherwise.
+            */}
+            <a
+              className="btn"
+              href={
+                selecting
+                  ? `/api/renders/download?ids=${[...chosen].join(',')}`
+                  : '/api/renders/download'
+              }
+            >
+              {selecting ? `Download ${chosen.size}` : 'Download all'}
+            </a>
             {selecting ? (
               <>
                 <span className="text-zinc-500">{chosen.size} selected</span>

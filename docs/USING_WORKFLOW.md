@@ -246,6 +246,10 @@ produce a broken back mockup.
 Rendering is local compositing. **It costs nothing.** Designs with a finished render move to
 **Mockups done**.
 
+**Download all** gives you every finished render in one zip, named
+`design-title_mockup-name.jpg`. Select some first and it becomes **Download N** for just
+those.
+
 **Deleting renders:** click a tile's checkbox (top-left on hover) or **Select all**, then
 **Delete**, which asks a second time. The image files go with the rows. Stages are left
 alone — a design in Mockups done with no renders is one you're about to re-render, not one

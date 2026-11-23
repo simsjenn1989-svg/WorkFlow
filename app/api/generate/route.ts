@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { db, signedUrl } from '@/lib/supabase';
 import { assertWithinBudget } from '@/lib/budget';
 import {
+  countField,
   estimateCents,
   getModel,
   getModelFields,
@@ -75,7 +76,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `Unknown model "${input.model}".` }, { status: 400 });
   }
 
-  const costCents = estimateCents(model, input.count);
+  /*
+    How many images this model will actually make.
+
+    `n` used to be sent to everything. Most of the catalogue ignores it — Nano Banana 2.1
+    has no count field at all — so asking for two produced one image, quoted for two, and
+    left a design that looked like it had approved itself. The schema decides: send the
+    model's own count field if it has one, and otherwise admit the run makes a single
+    image rather than charging and hoping.
+  */
+  const fields = await getModelFields(model);
+  const howMany = countField(fields);
+  const count = howMany ? input.count : 1;
+
+  const costCents = estimateCents(model, count);
   try {
     await assertWithinBudget(costCents);
   } catch (error) {
@@ -98,7 +112,7 @@ export async function POST(request: Request) {
       prompt_id: input.promptId,
       tags: input.tags,
       source_model: model.model,
-      source_params: { ...input.params, prompt, n: input.count },
+      source_params: { ...input.params, prompt, count },
     });
     if (designError) {
       return NextResponse.json(
@@ -125,7 +139,7 @@ export async function POST(request: Request) {
         .update({
           stage: 'generated',
           source_model: model.model,
-          source_params: { ...input.params, prompt, n: input.count },
+          source_params: { ...input.params, prompt, count },
           prompt_id: input.promptId,
         })
         .eq('id', designId);
@@ -159,7 +173,7 @@ export async function POST(request: Request) {
     const prediction = await startGeneration(model.model, prompt, {
       ...input.params,
       ...reference,
-      n: input.count,
+      ...(howMany ? { [howMany]: count } : {}),
     });
     predictionId = prediction.id;
   } catch (error) {
@@ -181,7 +195,7 @@ export async function POST(request: Request) {
       designId,
       predictionId,
       model: model.model,
-      count: input.count,
+      count,
       label,
       createdDesign,
       // Whether a failure should send the design back to Idea. True for a design this
@@ -196,7 +210,8 @@ export async function POST(request: Request) {
     },
   });
 
-  return NextResponse.json({ designId, predictionId, costCents });
+  // `count` so the client can say so when the model made fewer than were asked for.
+  return NextResponse.json({ designId, predictionId, costCents, count });
 }
 
 /** A readable title from the prompt's opening words, without cutting one in half. */

@@ -239,14 +239,19 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     like it had been discarded — when all that was missing was a click on the only option
     there was.
 
-    So a single-image generation adopts itself, onto the placement it was generated for.
-    Asking for two or more still waits, because then the decision is real.
+    So a generation that ASKED for one image adopts itself, onto the placement it was
+    generated for. Asking for two or more always waits, even if only one comes back:
+    wanting to choose and having nothing to choose from is a problem to notice, not to
+    paper over by approving what arrived.
 
     This also matches what the Generate screen already promises when pointed at an existing
     design: "the result becomes this design's front artwork, replacing any it already has".
   */
   let adopted: string | null = null;
-  if (prediction.outputs.length === 1) {
+  // Asked for one, and got one. Asking for two and receiving one is not a decision made —
+  // it is a decision missing, and adopting it silently is how a design ended up approved
+  // seconds after it was generated.
+  if (job.payload.count === 1 && prediction.outputs.length === 1) {
     const { data: only } = await db()
       .from('design_variants')
       .select('id')

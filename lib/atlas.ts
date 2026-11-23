@@ -197,6 +197,26 @@ export function referenceField(fields: AtlasField[]): string | null {
   );
 }
 
+/**
+ * The field that means "how many images", if the model has one.
+ *
+ * `n` was sent to every model as though it were universal. It is not: Nano Banana 2.1
+ * publishes model, prompt, aspect_ratio, resolution, thinking_level, two search toggles,
+ * top_p, temperature, seed and two output toggles — and nothing for a count. Asking it for
+ * two images quietly produced one, while the estimate quoted two, and the single result
+ * then looked like a design that had approved itself.
+ *
+ * Names vary across the catalogue, so the schema decides rather than a guess.
+ */
+export function countField(fields: AtlasField[]): string | null {
+  const names = new Set(fields.filter((f) => f.type === 'integer' || f.type === 'number').map((f) => f.name));
+  return (
+    ['num_images', 'n', 'num_outputs', 'image_count', 'num_samples', 'samples', 'batch_size'].find(
+      (candidate) => names.has(candidate),
+    ) ?? null
+  );
+}
+
 /** Every text-to-image model Atlas currently offers. */
 export async function listImageModels(): Promise<AtlasModel[]> {
   return (await catalogue())

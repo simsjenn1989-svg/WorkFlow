@@ -113,7 +113,9 @@ Every model is listed with its price per image — from **$0.003** (GPT Image 2.
 **$0.212** (Kling Image 4.0 Long-Image). Search the list by name. Resolution defaults to the
 largest the model offers, because print needs the pixels.
 
-Set **how many** images, optionally a **collection** and **tags**, then generate. The
+Set **how many** images, optionally a **collection** and **tags**, then generate. Some
+models make exactly one image a run and have no count at all — Nano Banana 2.1 is one — so
+on those the box is greyed out and says so. Generate again for another. The
 **Estimate** shown is the catalogue price; the real charge is recorded against your month
 once the images arrive, and it's often higher — size and quality multiply it.
 

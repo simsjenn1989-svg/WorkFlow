@@ -8,6 +8,7 @@ import type { Collection, DesignCard } from '@/lib/types';
 import { labelOptions, PRIMARY_LABEL } from '@/lib/artworks';
 import { ReferencePanel, type Reference } from './ReferencePanel';
 import { fillSlots, slotsIn } from '@/lib/queries';
+import { countField } from '@/lib/atlas';
 import { withPrintBackground } from '@/lib/background';
 
 type Phase = 'idle' | 'starting' | 'generating' | 'done' | 'error';
@@ -134,6 +135,11 @@ export function GenerateForm({
     return model && !matched.some((m) => m.model === model.model) ? [model, ...matched] : matched;
   }, [available, search, model]);
 
+  /** Whether this model takes a count at all; see countField in lib/atlas.ts. */
+  const makesMany = useMemo(() => countField(fields) !== null, [fields]);
+  /** What will really be made, which is what the estimate has to be based on. */
+  const effectiveCount = makesMany ? count : 1;
+
   const slots = useMemo(() => slotsIn(body), [body]);
   const finalPrompt = useMemo(() => fillSlots(body, slotValues), [body, slotValues]);
   /*
@@ -143,7 +149,7 @@ export function GenerateForm({
     prompt is worse than the bug it fixes.
   */
   const sentPrompt = useMemo(() => withPrintBackground(finalPrompt), [finalPrompt]);
-  const estimateCents = Math.round((model?.basePriceUsd ?? 0) * count * 100);
+  const estimateCents = Math.round((model?.basePriceUsd ?? 0) * effectiveCount * 100);
   const overBudget = estimateCents > remainingCents;
 
   /**
@@ -220,7 +226,7 @@ export function GenerateForm({
         body: JSON.stringify({
           prompt: sentPrompt,
           model: modelId,
-          count,
+          count: effectiveCount,
           params: typed,
           collectionId: collectionId || null,
           promptId: promptId || null,
@@ -400,6 +406,14 @@ export function GenerateForm({
 
       <aside className="space-y-4">
         <section className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
+          {/*
+            Only offered when the model can actually do it.
+
+            `n` was sent to every model as though it were universal. Most of the catalogue
+            ignores it — Nano Banana 2.1 has no count field at all — so asking for two
+            produced one image and an estimate for two. A box that does nothing is worse
+            than no box.
+          */}
           <label className="block space-y-1 text-xs text-zinc-400">
             How many
             <input
@@ -407,9 +421,15 @@ export function GenerateForm({
               min={1}
               max={10}
               className="field"
-              value={count}
+              value={makesMany ? count : 1}
+              disabled={!makesMany}
               onChange={(e) => setCount(Math.min(10, Math.max(1, Number(e.target.value) || 1)))}
             />
+            {!makesMany && model ? (
+              <span className="block text-[11px] leading-relaxed text-zinc-600">
+                {model.displayName} makes one image a run. Generate again for another.
+              </span>
+            ) : null}
           </label>
           <label className="block space-y-1 text-xs text-zinc-400">
             Placement
@@ -508,7 +528,8 @@ export function GenerateForm({
             that is what the ledger records.
           */}
           <p className="text-[11px] leading-relaxed text-zinc-600">
-            Atlas&rsquo;s listed base price for {count} image{count === 1 ? '' : 's'} — a floor,
+            Atlas&rsquo;s listed base price for {effectiveCount} image
+            {effectiveCount === 1 ? '' : 's'} — a floor,
             not a quote.{' '}
             {raisesPrice ? (
               <span className="text-amber-500/90">
@@ -534,7 +555,7 @@ export function GenerateForm({
               ? 'Starting…'
               : phase === 'generating'
                 ? 'Generating…'
-                : `Generate ${count} image${count === 1 ? '' : 's'}`}
+                : `Generate ${effectiveCount} image${effectiveCount === 1 ? '' : 's'}`}
           </button>
 
           {message ? (

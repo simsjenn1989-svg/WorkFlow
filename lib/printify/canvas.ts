@@ -62,32 +62,59 @@ export type CanvasResult = {
  */
 const INVISIBLE_ALPHA = 8;
 
+/**
+ * How much of a row or column must be above the alpha cut for it to count as the edge.
+ *
+ * One pixel is not an edge. Measured on a real design: the art ended at column 1620, and a
+ * single pixel at alpha 9-31 in column 1775 — the last column of the file — stretched the
+ * trim box 155 columns past it. Centring that box then put the visible art 78px left of
+ * centre, which is the "you didn't centre the designs" everyone can see on a mockup.
+ *
+ * 0.2% of the opposite dimension, or two pixels, whichever is more: 5 rows on a 2368px-tall
+ * design. A real edge — even a soft one — spans far more than that; dust spans one.
+ */
+const EDGE_FRACTION = 0.002;
+
 export async function trimByAlpha(source: Buffer, cut = INVISIBLE_ALPHA): Promise<Buffer> {
   const { data, info } = await sharp(source).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const { width, height, channels } = info;
 
-  let minX = width;
-  let maxX = -1;
-  let minY = height;
-  let maxY = -1;
-
+  const columns = new Int32Array(width);
+  const rows = new Int32Array(height);
   for (let y = 0; y < height; y++) {
-    const row = y * width;
+    const offset = y * width;
     for (let x = 0; x < width; x++) {
-      if (data[(row + x) * channels + 3]! <= cut) continue;
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
+      if (data[(offset + x) * channels + 3]! <= cut) continue;
+      columns[x]!++;
+      rows[y]!++;
     }
   }
 
+  const edge = (counts: Int32Array, across: number) => {
+    const need = Math.max(2, Math.round(across * EDGE_FRACTION));
+    let from = counts.findIndex((n) => n >= need);
+    let to = counts.length - 1;
+    while (to >= 0 && counts[to]! < need) to--;
+
+    // A design thinner than the threshold anywhere — a hairline — would come back empty.
+    // Fall back to any pixel at all rather than trimming it out of existence.
+    if (from < 0 || to < from) {
+      from = counts.findIndex((n) => n > 0);
+      to = counts.length - 1;
+      while (to >= 0 && counts[to]! === 0) to--;
+    }
+    return { from, to };
+  };
+
+  const x = edge(columns, height);
+  const y = edge(rows, width);
+
   // Nothing visible at all: hand back what came in rather than an empty extract, and let
   // the caller's own "this cut out the design" checks deal with it.
-  if (maxX < minX || maxY < minY) return source;
+  if (x.from < 0 || y.from < 0 || x.to < x.from || y.to < y.from) return source;
 
   return sharp(source)
-    .extract({ left: minX, top: minY, width: maxX - minX + 1, height: maxY - minY + 1 })
+    .extract({ left: x.from, top: y.from, width: x.to - x.from + 1, height: y.to - y.from + 1 })
     .png()
     .toBuffer();
 }

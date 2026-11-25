@@ -42,6 +42,8 @@ export type StageEvent = {
 export type DesignCard = Design & {
   collection_name: string | null;
   image_url: string | null;
+  /** The thumbnail's storage path, so a grid can ask for a small copy instead. */
+  image_path: string | null;
   artwork_labels: string[];
   /**
    * Generated images not yet picked from.

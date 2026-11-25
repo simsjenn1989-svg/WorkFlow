@@ -4,12 +4,15 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { deleteRenders } from '@/app/renders/actions';
 import { asDownload, downloadName } from '@/lib/download';
+import { thumbUrl } from '@/lib/thumb';
 
 export type FinishedRender = {
   id: string;
   design_title: string;
   mockup_name: string;
   url: string | null;
+  /** For the tile's small copy; the download link still uses the original. */
+  output_path: string | null;
 };
 
 /**
@@ -145,7 +148,7 @@ export function FinishedRenders({ renders }: { renders: FinishedRender[] }) {
                   className="block cursor-pointer"
                 >
                   <div className="relative aspect-[4/3] bg-zinc-950">
-                    {render.url ? (
+                    {render.output_path ? (
                       /*
                         Contained, not cropped. `object-cover` filled the tile by cutting the
                         sides off a 4:3 photo, which on this screen meant judging a print's
@@ -153,11 +156,12 @@ export function FinishedRenders({ renders }: { renders: FinishedRender[] }) {
                         design that sat fine looked clipped and off-centre. The whole frame
                         is the point here.
 
-                        Signed, expiring URLs — next/image would cache them past their lifetime.
+                        An 800px copy rather than the 2 MB render: this grid showed 326 of
+                        them at full size, which was 578 MB in one page load.
                       */
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={render.url}
+                        src={thumbUrl(render.output_path, 800)!}
                         alt={`${render.design_title} on ${render.mockup_name}`}
                         className="h-full w-full object-contain"
                         loading="lazy"

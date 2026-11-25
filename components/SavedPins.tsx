@@ -6,6 +6,7 @@ import { deletePins } from '@/app/pins/actions';
 import { asDownload } from '@/lib/download';
 import { pinFileName } from '@/lib/pins/csv';
 import type { PinCard } from '@/lib/pins/data';
+import { thumbUrl } from '@/lib/thumb';
 
 /**
  * The saved pins, with the two things the screen was missing.
@@ -121,11 +122,11 @@ export function SavedPins({ pins }: { pins: PinCard[] }) {
                 className="block cursor-pointer"
               >
                 <div className="relative aspect-[2/3] bg-zinc-950">
-                  {pin.url ? (
-                    /* Signed, expiring URLs — next/image would cache them past their lifetime. */
+                  {pin.output_path ? (
+                    // A 400px copy; the tile links to the original for download.
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={pin.url}
+                      src={thumbUrl(pin.output_path, 400)!}
                       alt={pin.title ?? pin.design_title}
                       className="h-full w-full object-cover"
                       loading="lazy"

@@ -106,6 +106,7 @@ async function toCard(row: DesignRow, job: JobRow | null = null): Promise<Design
     ...design,
     collection_name: collections?.name ?? null,
     image_url: thumbnail ? await signedUrl(thumbnail) : null,
+    image_path: thumbnail ?? null,
     artwork_labels: artworks.map((a) => a.label),
     unchosen_variants: primary ? 0 : unchosen.length,
     job: job

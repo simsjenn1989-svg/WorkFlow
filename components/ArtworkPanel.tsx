@@ -7,6 +7,7 @@ import { COMMON_LABELS, labelOptions, type Artwork } from '@/lib/artworks';
 import { checkFiles, uploadFiles } from '@/lib/upload-client';
 import { assignArtwork } from '@/app/actions';
 import type { Variant } from '@/lib/queries';
+import { thumbUrl } from '@/lib/thumb';
 
 /**
  * The artwork a design holds, one per placement.
@@ -186,10 +187,9 @@ export function ArtworkPanel({
           {artworks.map((artwork) => (
             <div key={artwork.id} className="overflow-hidden rounded-md border border-zinc-800">
               <div className="relative aspect-square bg-[repeating-conic-gradient(#27272a_0%_25%,#18181b_0%_50%)] bg-[length:12px_12px]">
-                {artwork.url ? (
-                  /* Signed, expiring URLs — next/image would cache them past their lifetime. */
+                {artwork.image_path ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={artwork.url} alt={artwork.label} className="h-full w-full object-contain" loading="lazy" />
+                  <img src={thumbUrl(artwork.image_path, 400)!} alt={artwork.label} className="h-full w-full object-contain" loading="lazy" />
                 ) : null}
               </div>
               <p className="truncate px-2 py-1 text-[11px] text-zinc-300">{artwork.label}</p>

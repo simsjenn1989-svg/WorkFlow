@@ -8,6 +8,7 @@ import type { AtlasModel, AtlasField } from '@/lib/atlas';
 import type { BudgetState } from '@/lib/budget';
 import type { ShotTemplate } from '@/lib/video/data';
 import type { FrameMode } from '@/lib/video/frame';
+import { thumbUrl } from '@/lib/thumb';
 
 const FRAMINGS: { mode: FrameMode; label: string; hint: string }[] = [
   { mode: 'crop', label: 'Crop', hint: 'Vertical slice centred on the design' },
@@ -227,7 +228,11 @@ export function VideoStudio({
               >
                 {/* Signed, expiring URLs — next/image would cache them past their lifetime. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={r.url!} alt={r.design_title} className="aspect-[4/3] w-full object-cover" />
+                <img
+                  src={thumbUrl(r.output_path, 400)!}
+                  alt={r.design_title}
+                  className="aspect-[4/3] w-full object-cover"
+                />
               </button>
             ))}
           </div>

@@ -24,6 +24,7 @@ import { CopyPanel } from './CopyPanel';
 import type { CopyModel } from '@/lib/copy/generate';
 import type { CustomFont } from '@/lib/pins/fonts';
 import { FontLoader } from './FontLoader';
+import { thumbUrl } from '@/lib/thumb';
 
 /**
  * The ported Pin Maker, working from finished renders instead of manual uploads.
@@ -102,15 +103,23 @@ export function PinStudio({
 
   const render = useMemo(() => renders.find((r) => r.id === renderId), [renders, renderId]);
 
-  // Fetched as a blob rather than set as an <img> src: a blob is same-origin, so the canvas
-  // is never tainted and can still be exported.
+  /*
+    Fetched as a blob rather than set as an <img> src: a blob is same-origin, so the canvas
+    is never tainted and can still be exported.
+
+    At 1600px, not the render's full 5333px. A pin is drawn on a 1000x1500 canvas, so the
+    source only has to beat that — 1600 still oversamples the widest crop, while the full
+    render was 2.2 MB to produce a 1000px image. The saved pin is unchanged: same canvas,
+    same 1000x1500 PNG.
+  */
+  const source = thumbUrl(render?.output_path ?? null, 1600);
   useEffect(() => {
     let cancelled = false;
-    if (!render?.url) {
+    if (!source) {
       setImage(null);
       return;
     }
-    fetch(render.url)
+    fetch(source)
       .then((r) => r.blob())
       .then((b) => createImageBitmap(b))
       .then((bitmap) => {
@@ -123,7 +132,7 @@ export function PinStudio({
     return () => {
       cancelled = true;
     };
-  }, [render?.url]);
+  }, [source]);
 
   useEffect(() => {
     if (canvasRef.current) drawPin({ canvas: canvasRef.current, style, content, image });

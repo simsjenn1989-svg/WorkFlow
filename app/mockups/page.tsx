@@ -4,6 +4,7 @@ import { isMarked, listMockups } from '@/lib/mockups';
 import { SetupNotice } from '@/app/setup/SetupNotice';
 import { MockupUpload } from './MockupUpload';
 import { AutoPlaceAll } from '@/components/AutoPlaceAll';
+import { thumbUrl } from '@/lib/thumb';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,7 +57,7 @@ export default async function MockupsPage() {
                   /* Signed, expiring URLs — next/image would cache them past their lifetime. */
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={template.url}
+                    src={thumbUrl(template.source_path, 400)!}
                     alt={template.name}
                     className="h-full w-full object-cover"
                     loading="lazy"

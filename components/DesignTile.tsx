@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { STAGE_META, timeIn } from '@/lib/stages';
 import type { DesignCard } from '@/lib/types';
+import { thumbUrl } from '@/lib/thumb';
 
 /**
  * What the tile should say about a design with no chosen artwork.
@@ -73,11 +74,15 @@ export function DesignTile({ design }: { design: DesignCard }) {
     <div className="group relative overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 transition hover:border-zinc-600">
       <Link href={`/designs/${design.id}`} className="block">
       <div className="relative aspect-square bg-[repeating-conic-gradient(#27272a_0%_25%,#18181b_0%_50%)] bg-[length:16px_16px]">
-        {design.image_url ? (
-          /* Signed, expiring URLs — next/image would cache them past their lifetime. */
+        {design.image_path ? (
+          /*
+            A 400px copy, not the original. A card's thumbnail was the full file — up to
+            27 MB to fill a 200px tile — which is what emptied the Supabase egress
+            allowance. See lib/thumb.ts.
+          */
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={design.image_url}
+            src={thumbUrl(design.image_path, 400)!}
             alt={design.title}
             className="h-full w-full object-contain"
             loading="lazy"

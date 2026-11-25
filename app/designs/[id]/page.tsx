@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { isConfigured } from '@/lib/supabase';
 import { asDownload, downloadName } from '@/lib/download';
+import { thumbUrl } from '@/lib/thumb';
 import { getDesign, getStageHistory, listCollections, thingsMadeFrom } from '@/lib/data';
 import { deleteDesign, updateDesign } from '@/app/actions';
 import { STAGE_META, timeIn } from '@/lib/stages';
@@ -54,10 +55,14 @@ export default async function DesignPage({ params }: { params: Promise<{ id: str
         <div className="space-y-4">
           <div className="space-y-2">
             <div className="overflow-hidden rounded-lg border border-zinc-800 bg-[repeating-conic-gradient(#27272a_0%_25%,#18181b_0%_50%)] bg-[length:20px_20px]">
-              {design.image_url ? (
+              {design.image_path ? (
+                /*
+                  A 1600px copy. The hero is shown about 600px wide and the original can be
+                  27 MB; Download PNG below still hands over the real file.
+                */
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={design.image_url}
+                  src={thumbUrl(design.image_path, 1600)!}
                   alt={design.title}
                   className="max-h-[60vh] w-full object-contain"
                 />

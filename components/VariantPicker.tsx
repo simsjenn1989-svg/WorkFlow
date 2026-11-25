@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { chooseVariant } from '@/app/generate/actions';
 import type { Variant } from '@/lib/queries';
 import { asDownload, downloadName } from '@/lib/download';
+import { thumbUrl } from '@/lib/thumb';
 
 /**
  * Pick the keeper from a generation. Choosing sets the design's image and moves it to
@@ -59,11 +60,11 @@ export function VariantPicker({
             }`}
           >
             <div className="relative aspect-square bg-[repeating-conic-gradient(#27272a_0%_25%,#18181b_0%_50%)] bg-[length:14px_14px]">
-              {variant.url ? (
-                /* Signed, expiring URLs — next/image would cache them past their lifetime. */
+              {variant.image_path ? (
+                // A 400px copy for the tile; the download link below still gets the original.
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={variant.url}
+                  src={thumbUrl(variant.image_path, 400)!}
                   alt=""
                   className="h-full w-full object-contain"
                   loading="lazy"

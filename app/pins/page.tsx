@@ -6,6 +6,7 @@ import { PinExport } from './PinExport';
 import { anthropicModels, DEFAULT_ATLAS_MODEL, type CopyModel } from '@/lib/copy/generate';
 import { SetupNotice } from '@/app/setup/SetupNotice';
 import { PinStudio } from './PinStudio';
+import { SavedPins } from '@/components/SavedPins';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,32 +59,7 @@ export default async function PinsPage() {
             </h2>
             <PinExport pins={pins} />
           </div>
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-            {pins.map((pin) => (
-              <a
-                key={pin.id}
-                href={pin.url ?? '#'}
-                download
-                className="overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 transition hover:border-zinc-600"
-              >
-                <div className="relative aspect-[2/3] bg-zinc-950">
-                  {pin.url ? (
-                    /* Signed, expiring URLs — next/image would cache them past their lifetime. */
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={pin.url}
-                      alt={pin.title ?? pin.design_title}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : null}
-                </div>
-                <p className="truncate px-2 py-1.5 text-[11px] text-zinc-400">
-                  {pin.title || pin.headline || pin.design_title}
-                </p>
-              </a>
-            ))}
-          </div>
+          <SavedPins pins={pins} />
         </section>
       ) : null}
     </div>

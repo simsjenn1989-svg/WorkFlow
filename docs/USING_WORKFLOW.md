@@ -275,6 +275,12 @@ type. Pick a render, write a headline (*"The Tee Everyone Asks About"*), a butto
 (*"Shop now"*), your URL, pick a look — and you can **save a look** by name to reuse it.
 Export the image.
 
+**Saved pins** sit below the studio. Click one to download it, or select some — the
+checkbox appears top-left on hover, or use **Select all** — then **Download N** for a zip
+or **Delete N**, which asks twice and takes the image files with it. **Titles &
+descriptions (.csv)** exports the Pinterest text, and its first column matches the file
+names in the zip so the two can be read side by side.
+
 If the screen says "No finished renders yet", run a batch on **Renders** first.
 
 ---

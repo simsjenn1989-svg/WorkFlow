@@ -7,6 +7,7 @@ import { describeAreaProblem } from '@/lib/render/homography';
 import { artworkForArea, artworkMap } from '@/lib/artworks';
 import { fitToArea } from '@/lib/render/fit';
 import { toPixelQuad, type MockupTemplate, type NormQuad } from '@/lib/mockups';
+import { renderSource } from '@/lib/render/source';
 
 export const runtime = 'nodejs';
 
@@ -70,11 +71,9 @@ export async function POST(request: Request) {
       const path = artworkForArea(artworks, area.label);
       if (!path) throw new Error(`No ${area.label} artwork for this design.`);
 
-      if (!files.has(path)) {
-        const file = await db().storage.from(BUCKET).download(path);
-        if (file.error || !file.data) throw new Error('A design image could not be read.');
-        files.set(path, Buffer.from(await file.data.arrayBuffer()));
-      }
+      // The render copy, not the print canvas: 0.68 MB against 17 MB, and no visible
+      // difference in the output. See lib/render/source.ts.
+      if (!files.has(path)) files.set(path, await renderSource(path));
 
       const quad = toPixelQuad(area.corners as NormQuad, width, height);
       const problem = describeAreaProblem(quad, width, height);

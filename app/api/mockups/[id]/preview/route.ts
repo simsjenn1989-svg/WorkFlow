@@ -7,6 +7,7 @@ import { describeAreaProblem } from '@/lib/render/homography';
 import { fitToArea } from '@/lib/render/fit';
 import { toPixelQuad, type NormQuad } from '@/lib/mockups';
 import { artworkForArea, artworkMap } from '@/lib/artworks';
+import { renderSource } from '@/lib/render/source';
 
 export const runtime = 'nodejs';
 
@@ -83,14 +84,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const width = meta.width ?? 0;
   const height = meta.height ?? 0;
 
-  // Each distinct file is downloaded once even when used by several areas.
+  // Each distinct file is fetched once even when used by several areas, and from the
+  // render copy rather than the print canvas — the same source the batch uses, so the
+  // preview shows what the batch will produce.
   const art = new Map<string, Buffer>();
   for (const path of new Set(chosen.map((p) => p.path!))) {
-    const file = await db().storage.from(BUCKET).download(path);
-    if (file.error || !file.data) {
+    try {
+      art.set(path, await renderSource(path));
+    } catch {
       return NextResponse.json({ error: 'A design image could not be read.' }, { status: 500 });
     }
-    art.set(path, Buffer.from(await file.data.arrayBuffer()));
   }
 
   const placements: Placement[] = [];

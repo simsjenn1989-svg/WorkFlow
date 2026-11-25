@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import { BUCKET, db } from '@/lib/supabase';
 import { defaultPreset } from './presets';
+import { buildRenderCopy, renderCopyPath } from '@/lib/render/source';
 import { DEFAULT_RULES, PRINT_DPI, placeArtwork, type PlacementRules } from './geometry';
 
 /**
@@ -270,9 +271,21 @@ export async function normaliseDesign(
 
         await db().from('design_artworks').update({ print_ready_path: path }).eq('id', row.id);
 
+        // The renderer's copy, made here because the canvas bytes are already in hand —
+        // so it costs nothing, where making it later costs a full download.
+        await db()
+          .storage.from(BUCKET)
+          .upload(renderCopyPath(path), await buildRenderCopy(built.png), {
+            contentType: 'image/webp',
+            upsert: true,
+          })
+          .catch(() => undefined);
+
         // The canvas this replaces is referenced by nothing once the row is updated. Left
-        // behind it is a 20 MB orphan per re-approval.
-        if (previous) await db().storage.from(BUCKET).remove([previous]);
+        // behind it is a 20 MB orphan per re-approval, and its render copy with it.
+        if (previous) {
+          await db().storage.from(BUCKET).remove([previous, renderCopyPath(previous)]);
+        }
       }
       out.push({ label: row.label, error: null, result: built });
     } catch (e) {

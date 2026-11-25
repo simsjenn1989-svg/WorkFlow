@@ -326,6 +326,12 @@ Inside **edit**:
   trimmed art.
 - **Use this preset by default**, then **Save changes**.
 
+**Titles and caps:** Printify rejects a mostly-capitals title outright — the whole product
+fails with `Title contains excessive caps`, nothing is created. Since the design titles are
+the shirt text, which is all caps, the push recases a shouted title to Title Case on its way
+out ("MOST LIKELY TO BUY MATCHING PAJAMAS" → "Most Likely to Buy Matching Pajamas"). A title
+that is already normally cased is sent exactly as written.
+
 ### Pushing
 
 Tick designs, confirm the preset, hit **Make drafts**.

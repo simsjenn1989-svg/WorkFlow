@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '@/lib/supabase';
 import { productUrl, updateProduct } from '@/lib/printify/client';
 import { markApplied, updateListingText } from '@/lib/listings/data';
+import { listingTitle } from '@/lib/printify/title';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -40,17 +41,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'That draft is not in Printify yet.' }, { status: 404 });
   }
 
+  // The same caps rule that rejects a product on create rejects an update, so the title is
+  // recased here too — and stored recased, so what the panel shows is what Printify holds.
+  const title = listingTitle(parsed.data.title);
+
   // Keep what is about to be sent, so an edit made here is not lost if Printify rejects it.
   await updateListingText({
     productRowId: draft.id,
-    title: parsed.data.title,
+    title,
     description: parsed.data.description,
     tags: parsed.data.tags,
   });
 
   try {
     await updateProduct(draft.shop_id, draft.printify_product_id, {
-      title: parsed.data.title,
+      title,
       description: parsed.data.description,
       tags: parsed.data.tags,
     });

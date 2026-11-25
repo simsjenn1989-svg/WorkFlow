@@ -14,6 +14,7 @@ import {
 import { makePrintReady } from './print-ready';
 import { enabledAreas, type Preset } from './presets';
 import { placeArtwork, type Placed } from './geometry';
+import { listingTitle } from './title';
 
 /**
  * Pushing one design to Printify as a draft.
@@ -165,7 +166,10 @@ export async function pushDesign(input: PushInput): Promise<PushResult> {
     : (await listCatalogVariants(preset.blueprint_id, preset.print_provider_id)).map((v) => v.id);
 
   const product: CreateProductInput = {
-    title: input.title,
+    // Printify rejects a mostly-capitals title outright (400, nothing created), and the
+    // design titles are the shirt text, which is all caps by design. Recased on the way
+    // out rather than at the call site, so no future caller can forget.
+    title: listingTitle(input.title),
     description: input.description,
     tags: input.tags,
     blueprint_id: preset.blueprint_id,

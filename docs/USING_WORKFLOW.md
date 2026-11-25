@@ -297,6 +297,15 @@ A finished render becomes a vertical clip. The price is shown before anything ru
   movement, which is where clips come back as nothing useful.
 - **Saved shots** keep a setup you liked so you can re-run it on another render.
 
+**Download** under a clip saves the `.mp4` with the design's name. (It used to just play the
+clip in a tab — browsers ignore the download attribute across origins, so storage is now
+asked for the file as an attachment instead.)
+
+**Deleting clips:** tick **select** under a clip, or **Select all**, then **Delete**, which
+asks a second time. The `.mp4`, the 9:16 frame it was made from, and anything else in that
+clip's folder all go with the row. Failed clips have their own **Clear failed** — nothing was
+charged for those.
+
 ---
 
 ## 8. Printify — making the draft
